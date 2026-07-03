@@ -1,0 +1,25 @@
+trigger:
+- main
+
+variables:
+- group: AZURE_STATIC_WEB_APPS_API_TOKEN
+
+pool:
+  vmImage: ubuntu-latest
+
+steps:
+- task: NodeTool@0
+  inputs:
+    versionSpec: '20.x'
+
+- script: |
+    cd NERP.UI
+    npm install
+    npm run build
+  displayName: Build React App
+
+- task: AzureStaticWebApp@0
+  inputs:
+    app_location: 'NERP.UI/dist'
+    skip_app_build: true
+    azure_static_web_apps_api_token: '$(AZURE_STATIC_WEB_APPS_API_TOKEN)'
