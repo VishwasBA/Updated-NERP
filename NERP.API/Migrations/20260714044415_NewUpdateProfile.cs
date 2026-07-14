@@ -5,7 +5,7 @@
 namespace EmployeeRecognition.API.Migrations
 {
     /// <inheritdoc />
-    public partial class Removingdeadcode : Migration
+    public partial class NewUpdateProfile : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -15,7 +15,7 @@ namespace EmployeeRecognition.API.Migrations
                 keyColumn: "Id",
                 keyValue: 1,
                 column: "PasswordHash",
-                value: "$2a$11$XntYi9qo3sQxBEMfgBBkb.nT8vhw4Ky2lOMHyxYIIEztWSyvpU33O");
+                value: "$2a$11$BVFFoAy8CH6s9wqgpL5cx.mjAfEt.kdNyVsCwvQ8qtyZOKTNWSvpu");
         }
 
         /// <inheritdoc />

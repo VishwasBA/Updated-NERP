@@ -185,7 +185,7 @@ namespace EmployeeRecognition.API.Migrations
                             IsActive = true,
                             Location = "",
                             Name = "Admin User",
-                            PasswordHash = "$2a$11$XntYi9qo3sQxBEMfgBBkb.nT8vhw4Ky2lOMHyxYIIEztWSyvpU33O",
+                            PasswordHash = "$2a$11$7.QyV1pWUrEmcpRQRvYxz.27HPZOdk8p8pmcWudGcdkpDbZ59D1S.",
                             Role = "HR Manager",
                             TotalPoints = 0,
                             UserRole = "admin"

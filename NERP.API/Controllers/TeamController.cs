@@ -24,7 +24,90 @@ public class TeamController : ControllerBase
     public async Task<IActionResult> GetManagerDashboard()
     {
         var managerId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+        var dto = await BuildManagerDashboardAsync(managerId);
+        return Ok(dto);
+    }
 
+    // ---- Admin: cross-manager oversight ----
+    // Admins generally have no direct reports of their own, so "My Team"
+    // doesn't make sense for that role — instead they get a roster of every
+    // manager in the org plus the ability to drill into any one manager's
+    // team using the exact same dashboard shape as GetManagerDashboard.
+    [HttpGet("all-teams")]
+    [Authorize(Roles = "admin")]
+    public async Task<IActionResult> GetAllTeams()
+    {
+        var managers = await _db.Employees
+            .AsNoTracking()
+            .Where(e => e.UserRole == "manager")
+            .OrderBy(e => e.Name)
+            .ToListAsync();
+
+        var reportCounts = await _db.Employees
+            .AsNoTracking()
+            .Where(e => e.ManagerId != null)
+            .GroupBy(e => e.ManagerId!.Value)
+            .Select(g => new { ManagerId = g.Key, Count = g.Count(), TotalPoints = g.Sum(e => e.TotalPoints) })
+            .ToListAsync();
+
+        var reportsByManager = reportCounts.ToDictionary(g => g.ManagerId);
+
+        var reportIdsByManager = await _db.Employees
+            .AsNoTracking()
+            .Where(e => e.ManagerId != null)
+            .Select(e => new { e.Id, e.ManagerId })
+            .ToListAsync();
+
+        var approvedSet = (await _db.Recognitions
+            .AsNoTracking()
+            .Where(r => r.Status == "approved")
+            .Select(r => r.ToEmployeeId)
+            .ToListAsync()).ToHashSet();
+
+        var pendingNomsByRecipient = await _db.Recognitions
+            .AsNoTracking()
+            .Where(r => r.Type == "nomination" && r.Status == "pending")
+            .Select(r => r.ToEmployeeId)
+            .ToListAsync();
+
+        var result = managers.Select(m =>
+        {
+            var reportIds = reportIdsByManager.Where(r => r.ManagerId == m.Id).Select(r => r.Id).ToHashSet();
+            reportsByManager.TryGetValue(m.Id, out var agg);
+
+            return new AllTeamsEntryDto
+            {
+                ManagerId = m.Id,
+                ManagerName = m.Name,
+                Department = m.Department,
+                Avatar = m.Avatar,
+                TeamSize = reportIds.Count,
+                AppreciatedEmployees = reportIds.Count(id => approvedSet.Contains(id)),
+                EmployeesWithoutRecognition = reportIds.Count(id => !approvedSet.Contains(id)),
+                PendingNominations = reportIds.Count(id => pendingNomsByRecipient.Contains(id)),
+                TotalTeamPoints = agg?.TotalPoints ?? 0
+            };
+        }).ToList();
+
+        return Ok(result);
+    }
+
+    [HttpGet("all-teams/{managerId}")]
+    [Authorize(Roles = "admin")]
+    public async Task<IActionResult> GetTeamForManager(int managerId)
+    {
+        var managerExists = await _db.Employees.AsNoTracking().AnyAsync(e => e.Id == managerId && e.UserRole == "manager");
+        if (!managerExists) return NotFound(new { message = "Manager not found." });
+
+        var dto = await BuildManagerDashboardAsync(managerId);
+        return Ok(dto);
+    }
+
+    // Shared by both a manager viewing their own dashboard and an admin
+    // drilling into a specific manager's team from "All Teams" — same
+    // shape, same rules, just a different source for whose reports count.
+    private async Task<ManagerDashboardDto> BuildManagerDashboardAsync(int managerId)
+    {
         var reports = await _db.Employees
             .AsNoTracking()
             .Where(e => e.ManagerId == managerId)
@@ -36,7 +119,7 @@ public class TeamController : ControllerBase
 
         if (reportIds.Count == 0)
         {
-            return Ok(new ManagerDashboardDto());
+            return new ManagerDashboardDto();
         }
 
         // All recognitions where a direct report is the recipient — this is
@@ -119,7 +202,7 @@ public class TeamController : ControllerBase
         var topPerformers = members.OrderByDescending(m => m.Points).Take(5).ToList();
         var bottomPerformers = members.OrderBy(m => m.Points).Take(5).ToList();
 
-        return Ok(new ManagerDashboardDto
+        return new ManagerDashboardDto
         {
             Stats = stats,
             RecentAppreciations = recentAppreciations,
@@ -127,7 +210,7 @@ public class TeamController : ControllerBase
             TopPerformers = topPerformers,
             BottomPerformers = bottomPerformers,
             Members = members.OrderByDescending(m => m.Points).ToList()
-        });
+        };
     }
 
     // Kept for backward compatibility with any existing "my team" widgets;

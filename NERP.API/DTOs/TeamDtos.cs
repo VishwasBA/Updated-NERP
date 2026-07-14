@@ -51,3 +51,17 @@ public class ManagerDashboardDto
     public List<TeamMemberDto> BottomPerformers { get; set; } = new();
     public List<TeamMemberDto> Members { get; set; } = new();
 }
+
+// One row per manager in the org, for the Admin "All Teams" overview.
+public class AllTeamsEntryDto
+{
+    public int ManagerId { get; set; }
+    public string ManagerName { get; set; } = string.Empty;
+    public string Department { get; set; } = string.Empty;
+    public string Avatar { get; set; } = string.Empty;
+    public int TeamSize { get; set; }
+    public int AppreciatedEmployees { get; set; }
+    public int EmployeesWithoutRecognition { get; set; }
+    public int PendingNominations { get; set; }
+    public int TotalTeamPoints { get; set; }
+}

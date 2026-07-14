@@ -6,13 +6,13 @@ import {
   Trophy,
   Gift,
   Star,
-  History,
   X,
   Sun,
   Moon,
   LogOut,
   User,
   Users,
+  Building2,
   Shield,
   Bell,
   ChevronLeft,
@@ -31,9 +31,9 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   const { user, logout } = useAuth();
 
   // Primary sidebar items — kept to the compact set shown in the reference
-  // design. Everything else (Profile, Notifications, History, Redeem
-  // History, Admin) remains fully reachable via the top navbar's profile
-  // menu, so no existing route or permission becomes unreachable.
+  // design. Everything else (Profile, Notifications, Redeem History,
+  // Admin) remains fully reachable via the top navbar's profile menu, so
+  // no existing route or permission becomes unreachable.
   const navItems = [
     { to: "/", label: "Home", icon: Home },
     { to: "/my-recognitions", label: "Wall of Fame", icon: Award },
@@ -44,13 +44,17 @@ export default function AppLayout({ children }: { children: ReactNode }) {
       icon: Star,
     },
     { to: "/redeem", label: "Redeem", icon: Gift },
-    ...(user?.userRole === "manager" || user?.userRole === "admin"
+    // Admins don't have direct reports of their own, so "My Team" doesn't
+    // apply — they get an org-wide view across every manager's team
+    // instead. Managers keep the personal, direct-reports-only dashboard.
+    ...(user?.userRole === "admin"
+      ? [{ to: "/all-teams", label: "All Teams", icon: Building2 }]
+      : user?.userRole === "manager"
       ? [{ to: "/manager-dashboard", label: "My Team", icon: Users }]
       : []),
   ];
 
   const mobileExtraItems = [
-    { to: "/history", label: "History", icon: History },
     { to: "/profile", label: "Profile", icon: User },
     { to: "/notifications", label: "Notifications", icon: Bell },
     ...(user?.userRole === "admin" ? [{ to: "/admin", label: "Admin", icon: Shield }] : []),

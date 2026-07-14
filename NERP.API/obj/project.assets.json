@@ -4450,11 +4450,11 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "C:\\Users\\00325097\\Downloads\\fixed nerp\\NERP_updated Monday\\NERP.API\\EmployeeRecognition.API.csproj",
+      "projectUniqueName": "C:\\claude 3\\Updated-NERP\\NERP.API\\EmployeeRecognition.API.csproj",
       "projectName": "EmployeeRecognition.API",
-      "projectPath": "C:\\Users\\00325097\\Downloads\\fixed nerp\\NERP_updated Monday\\NERP.API\\EmployeeRecognition.API.csproj",
+      "projectPath": "C:\\claude 3\\Updated-NERP\\NERP.API\\EmployeeRecognition.API.csproj",
       "packagesPath": "C:\\Users\\00325097\\.nuget\\packages\\",
-      "outputPath": "C:\\Users\\00325097\\Downloads\\fixed nerp\\NERP_updated Monday\\NERP.API\\obj\\",
+      "outputPath": "C:\\claude 3\\Updated-NERP\\NERP.API\\obj\\",
       "projectStyle": "PackageReference",
       "fallbackFolders": [
         "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"

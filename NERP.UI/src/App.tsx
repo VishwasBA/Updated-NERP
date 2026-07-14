@@ -14,7 +14,6 @@ const Nominations = lazy(() => import("./pages/Nominations"));
 const Leaderboard = lazy(() => import("./pages/Leaderboard"));
 const Marketplace = lazy(() => import("./pages/Marketplace"));
 const MyRecognitions = lazy(() => import("./pages/MyRecognitions"));
-const History = lazy(() => import("./pages/History"));
 const Profile = lazy(() => import("./pages/Profile"));
 const Login = lazy(() => import("./pages/Login"));
 const Signup = lazy(() => import("./pages/Signup"));
@@ -23,6 +22,7 @@ const Admin = lazy(() => import("./pages/Admin"));
 const Notifications = lazy(() => import("./pages/Notifications"));
 const RedeemHistory = lazy(() => import("./pages/RedeemHistory"));
 const ManagerDashboard = lazy(() => import("./pages/ManagerDashboard"));
+const AllTeams = lazy(() => import("./pages/AllTeams"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -78,7 +78,14 @@ const App = () => (
                             </RoleRoute>
                           }
                         />
-                        <Route path="/history" element={<History />} />
+                        <Route
+                          path="/all-teams"
+                          element={
+                            <RoleRoute roles={["admin"]}>
+                              <AllTeams />
+                            </RoleRoute>
+                          }
+                        />
                         <Route path="/admin" element={<Admin />} />
                         <Route path="/notifications" element={<Notifications />} />
                         <Route path="/redeem-history" element={<RedeemHistory />} />

@@ -12,8 +12,8 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace EmployeeRecognition.API.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260713053132_Removingdeadcode")]
-    partial class Removingdeadcode
+    [Migration("20260714044415_NewUpdateProfile")]
+    partial class NewUpdateProfile
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -188,7 +188,7 @@ namespace EmployeeRecognition.API.Migrations
                             IsActive = true,
                             Location = "",
                             Name = "Admin User",
-                            PasswordHash = "$2a$11$XntYi9qo3sQxBEMfgBBkb.nT8vhw4Ky2lOMHyxYIIEztWSyvpU33O",
+                            PasswordHash = "$2a$11$BVFFoAy8CH6s9wqgpL5cx.mjAfEt.kdNyVsCwvQ8qtyZOKTNWSvpu",
                             Role = "HR Manager",
                             TotalPoints = 0,
                             UserRole = "admin"

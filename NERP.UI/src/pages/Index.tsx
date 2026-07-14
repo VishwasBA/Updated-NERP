@@ -1,4 +1,3 @@
-import StatsCards from "@/components/dashboard/StatsCards";
 import RecognitionFeed from "@/components/dashboard/RecognitionFeed";
 import LeaderboardWidget from "@/components/dashboard/LeaderboardWidget";
 import QuickActions from "@/components/dashboard/QuickActions";
@@ -70,8 +69,6 @@ export default function Index() {
           )}
         </div>
       </div>
-
-      <StatsCards summary={dashboard} isLoading={isLoading} />
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Suspense fallback={<ChartSkeleton />}>

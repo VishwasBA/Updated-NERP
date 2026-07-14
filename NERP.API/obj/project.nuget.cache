@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "dgSpecHash": "ANtsxQ5bydM=",
+  "dgSpecHash": "UWoA/aBked8=",
   "success": true,
-  "projectFilePath": "C:\\Users\\00325097\\Downloads\\fixed nerp\\NERP_updated Monday\\NERP.API\\EmployeeRecognition.API.csproj",
+  "projectFilePath": "C:\\claude 3\\Updated-NERP\\NERP.API\\EmployeeRecognition.API.csproj",
   "expectedPackageFiles": [
     "C:\\Users\\00325097\\.nuget\\packages\\azure.core\\1.25.0\\azure.core.1.25.0.nupkg.sha512",
     "C:\\Users\\00325097\\.nuget\\packages\\azure.identity\\1.7.0\\azure.identity.1.7.0.nupkg.sha512",

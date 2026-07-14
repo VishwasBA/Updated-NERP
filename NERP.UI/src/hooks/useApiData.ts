@@ -438,3 +438,23 @@ export function useRemoveTeamMember() {
     },
   });
 }
+
+// ---- Admin: All Teams overview ----
+export function useAllTeams() {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: ["team", "all-teams"],
+    queryFn: () => teamApi.getAllTeams(),
+    enabled: user?.userRole === "admin",
+    ...sharedQueryOptions,
+  });
+}
+
+export function useTeamForManager(managerId: number | null) {
+  return useQuery({
+    queryKey: ["team", "all-teams", managerId],
+    queryFn: () => teamApi.getTeamForManager(managerId!),
+    enabled: managerId !== null,
+    ...sharedQueryOptions,
+  });
+}

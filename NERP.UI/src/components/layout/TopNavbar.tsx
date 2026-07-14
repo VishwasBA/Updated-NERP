@@ -66,7 +66,8 @@ export default function TopNavbar({ onOpenMobileMenu }: { onOpenMobileMenu?: () 
       <div className="flex items-center gap-2 sm:gap-3">
         {/* Points received */}
         <Link
-          to="/history"
+          to="/profile"
+          state={{ tab: "recognition", recognitionSubTab: "received" }}
           className="flex items-center gap-1.5 rounded-full border border-emerald-100 bg-emerald-50 px-3 py-1.5 text-emerald-700 transition hover:bg-emerald-100 dark:border-emerald-900/40 dark:bg-emerald-950/40 dark:text-emerald-300"
         >
           <Trophy className="h-4 w-4" />
@@ -171,14 +172,11 @@ export default function TopNavbar({ onOpenMobileMenu }: { onOpenMobileMenu?: () 
               <Link to="/profile">Profile & Settings</Link>
             </DropdownMenuItem>
             <DropdownMenuItem asChild className="cursor-pointer rounded-xl">
-              <Link to="/history">History</Link>
-            </DropdownMenuItem>
-            <DropdownMenuItem asChild className="cursor-pointer rounded-xl">
               <Link to="/redeem-history">Redeem History</Link>
             </DropdownMenuItem>
             {user?.userRole === "admin" && (
               <DropdownMenuItem asChild className="cursor-pointer rounded-xl">
-                <Link to="/admin">Admin Dashboard</Link>
+                <Link to="/admin">User Management</Link>
               </DropdownMenuItem>
             )}
             <DropdownMenuSeparator />

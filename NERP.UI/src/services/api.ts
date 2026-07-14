@@ -436,7 +436,22 @@ export const teamApi = {
     apiFetch<{ success: boolean }>(`/team/members/${employeeId}`, { method: "POST" }),
   removeMember: (employeeId: number) =>
     apiFetch<{ success: boolean }>(`/team/members/${employeeId}`, { method: "DELETE" }),
+  // Admin-only cross-manager overview.
+  getAllTeams: () => apiFetch<ApiAllTeamsEntry[]>("/team/all-teams"),
+  getTeamForManager: (managerId: number) => apiFetch<ApiManagerDashboard>(`/team/all-teams/${managerId}`),
 };
+
+export interface ApiAllTeamsEntry {
+  managerId: number;
+  managerName: string;
+  department: string;
+  avatar: string;
+  teamSize: number;
+  appreciatedEmployees: number;
+  employeesWithoutRecognition: number;
+  pendingNominations: number;
+  totalTeamPoints: number;
+}
 
 // ---- Notifications ----
 export interface ApiNotification {

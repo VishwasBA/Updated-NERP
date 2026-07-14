@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useLocation } from "react-router-dom";
 import { User as UserIcon, Trophy, Grid3x3, ShoppingBag, Flag } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { UserAvatar } from "@/components/ui/avatar";
@@ -21,7 +22,11 @@ const TABS: { key: TabKey; label: string; icon: typeof UserIcon }[] = [
 
 export default function Profile() {
   const { user, loading } = useAuth();
-  const [tab, setTab] = useState<TabKey>("profile");
+  const location = useLocation();
+  // Deep-linked from the top navbar's "Received" pill (opens straight to
+  // My Recognition > Received) — falls back to the default profile tab.
+  const navState = location.state as { tab?: TabKey; recognitionSubTab?: "received" | "given" } | null;
+  const [tab, setTab] = useState<TabKey>(navState?.tab ?? "profile");
 
   if (loading) {
     return (
@@ -62,7 +67,7 @@ export default function Profile() {
       {/* Active panel */}
       <div className="min-w-0 flex-1">
         {tab === "profile" && <ProfileDetailsPanel />}
-        {tab === "recognition" && <MyRecognitionPanel />}
+        {tab === "recognition" && <MyRecognitionPanel initialSubTab={navState?.recognitionSubTab} />}
         {tab === "points" && <MyPointsPanel />}
         {tab === "milestones" && <MyMilestonesPanel />}
         {tab === "orders" && <MyOrdersPanel />}
