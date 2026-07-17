@@ -88,22 +88,26 @@ export function useRecentApprovedNominations(limit = 4) {
 }
 
 export function useMyRecognitions() {
+  const { user } = useAuth();
   return useQuery<ApiRecognition[]>({
-    queryKey: ["recognitions", "my"],
+    queryKey: ["recognitions", "my", user?.id],
     // NOTE: must be wrapped in a closure. react-query calls queryFn with its
     // own QueryFunctionContext ({ queryKey, signal, meta, ... }); passing
     // recognitionsApi.getMy directly meant that context object was being
     // forwarded as the `params` argument and serialized into the request's
     // query string instead of the intended (empty) filters.
     queryFn: () => recognitionsApi.getMy(),
+    enabled: !!user,
     ...sharedQueryOptions,
   });
 }
 
 export function useDashboardSummary() {
+  const { user } = useAuth();
   return useQuery<ApiDashboardSummary>({
-    queryKey: ["dashboard", "summary"],
+    queryKey: ["dashboard", "summary", user?.id],
     queryFn: dashboardApi.getSummary,
+    enabled: !!user,
     ...sharedQueryOptions,
   });
 }
@@ -143,6 +147,43 @@ export function useRejectRecognition() {
     },
   });
 }
+
+export function usePendingApprovals() {
+  const { user } = useAuth();
+  return useQuery<ApiRecognition[]>({
+    queryKey: ["recognitions", "pending-approvals", user?.id],
+    queryFn: recognitionsApi.getPendingApprovals,
+    enabled: !!user,
+    ...sharedQueryOptions,
+  });
+}
+
+export function useBuDecision() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, decision, comments }: { id: number; decision: "approve" | "reject" | "shortlist"; comments?: string }) =>
+      recognitionsApi.buDecision(id, decision, comments),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["recognitions"] });
+      queryClient.invalidateQueries({ queryKey: ["employees"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+    },
+  });
+}
+
+export function useHrDecision() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, decision, comments }: { id: number; decision: "select" | "reject"; comments?: string }) =>
+      recognitionsApi.hrDecision(id, decision, comments),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["recognitions"] });
+      queryClient.invalidateQueries({ queryKey: ["employees"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+    },
+  });
+}
+
 
 // ---- Marketplace hooks ----
 import { productsApi } from "@/services/api";
@@ -264,9 +305,11 @@ export function useTriggerMilestones() {
 
 // ---- Notifications ----
 export function useNotifications() {
+  const { user } = useAuth();
   return useQuery({
-    queryKey: ["notifications"],
+    queryKey: ["notifications", user?.id],
     queryFn: notificationsApi.getAll,
+    enabled: !!user,
     ...sharedQueryOptions,
     refetchInterval: 30000,
   });
@@ -302,9 +345,11 @@ export function useWallOfFameMilestones() {
 // Notifications page — kept for the Home page's personal "Latest
 // Milestones" panel (distinct from the org-wide Wall of Fame feed above).
 export function useMilestoneNotifications() {
+  const { user } = useAuth();
   return useQuery({
-    queryKey: ["notifications"],
+    queryKey: ["notifications", user?.id],
     queryFn: notificationsApi.getAll,
+    enabled: !!user,
     ...sharedQueryOptions,
     refetchInterval: 30000,
     select: (res) =>
@@ -318,12 +363,14 @@ export function useMilestoneNotifications() {
 // the "Received" indicator in the top navbar. Reuses the existing
 // GET /recognitions/my?direction=received endpoint.
 export function useReceivedRecognitionsCount() {
+  const { user } = useAuth();
   return useQuery<number>({
-    queryKey: ["recognitions", "received-count"],
+    queryKey: ["recognitions", "received-count", user?.id],
     queryFn: async () => {
       const res = await recognitionsApi.getMy({ direction: "received", pageSize: 1000 });
       return Array.isArray(res) ? res.length : 0;
     },
+    enabled: !!user,
     ...sharedQueryOptions,
   });
 }
@@ -357,18 +404,21 @@ export function useRedeemHistory() {
 export function useManagerDashboard() {
   const { user } = useAuth();
   return useQuery({
-    queryKey: ["team", "dashboard"],
+    queryKey: ["team", "dashboard", user?.id],
     queryFn: () => teamApi.getDashboard(),
-    enabled: user?.userRole === "manager" || user?.userRole === "admin",
+    enabled: !!user && (user?.userRole === "cu_manager" || user?.userRole === "bu_manager" || user?.userRole === "admin"),
+
     ...sharedQueryOptions,
   });
 }
 
 // ---- Personal Milestones ----
 export function useMyMilestones() {
+  const { user } = useAuth();
   return useQuery({
-    queryKey: ["milestones", "me"],
+    queryKey: ["milestones", "me", user?.id],
     queryFn: () => milestonesApi.getMine(),
+    enabled: !!user,
     ...sharedQueryOptions,
   });
 }
@@ -412,9 +462,11 @@ export function useAddComment() {
 
 // ---- Manager self-service team membership ----
 export function useAvailableEmployees(search: string) {
+  const { user } = useAuth();
   return useQuery({
-    queryKey: ["team", "available", search],
+    queryKey: ["team", "available", user?.id, search],
     queryFn: () => teamApi.getAvailableEmployees(search || undefined),
+    enabled: !!user,
     ...sharedQueryOptions,
   });
 }
@@ -436,5 +488,15 @@ export function useRemoveTeamMember() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["team"] });
     },
+  });
+}
+
+export function useMySentNominations() {
+  const { user } = useAuth();
+  return useQuery<ApiRecognition[]>({
+    queryKey: ["recognitions", "my-sent-nominations", user?.id],
+    queryFn: () => recognitionsApi.getMy({ direction: "sent", type: "nomination" }),
+    enabled: !!user,
+    ...sharedQueryOptions,
   });
 }

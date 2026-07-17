@@ -15,6 +15,7 @@ export default function Signup() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [department, setDepartment] = useState("");
   const [role, setRole] = useState("");
+  const [userRole, setUserRole] = useState("employee");
   const [submitting, setSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -38,8 +39,10 @@ export default function Signup() {
         password,
         name,
         department,
-        role,
+        role: role || "Associate",
+        userRole,
       });
+
 
       login(res.token, res.user);
       toast.success("Account created successfully! 🎉");
@@ -149,6 +152,28 @@ export default function Signup() {
               <p className="text-sm text-red-400">Passwords do not match</p>
             )}
 
+            {/* ROLE SELECTION */}
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-gray-200">System Role (for testing hierarchy/workflows)</label>
+              <select
+                value={userRole}
+                onChange={(e) => {
+                  setUserRole(e.target.value);
+                  if (e.target.value === "employee") setRole("Associate");
+                  else if (e.target.value === "cu_manager") setRole("CU Lead");
+                  else if (e.target.value === "bu_manager") setRole("BU Lead");
+                  else if (e.target.value === "admin") setRole("HR/Admin");
+                }}
+                className="w-full rounded-md bg-black/50 border border-white/30 text-white px-3 py-2 text-sm
+                focus:border-blue-400 focus:ring-2 focus:ring-blue-400/40 outline-none transition-all"
+              >
+                <option value="employee" className="bg-slate-900 text-white">Employee</option>
+                <option value="cu_manager" className="bg-slate-900 text-white">CU Manager</option>
+                <option value="bu_manager" className="bg-slate-900 text-white">BU Manager</option>
+                <option value="admin" className="bg-slate-900 text-white">HR/Admin</option>
+              </select>
+            </div>
+
             {/* DEPARTMENT + ROLE */}
             <div className="grid grid-cols-2 gap-3">
               <Input
@@ -162,7 +187,7 @@ export default function Signup() {
               />
 
               <Input
-                placeholder="Job Title (e.g. Software Engineer)"
+                placeholder="Job Title"
                 value={role}
                 onChange={(e) => setRole(e.target.value)}
                 className="bg-black/50 border border-white/30 text-white 
@@ -170,9 +195,7 @@ export default function Signup() {
                 hover:shadow-[0_0_10px_rgba(255,255,255,0.2)] transition-all"
               />
             </div>
-            <p className="text-xs text-gray-300">
-              New accounts start as a standard employee. An admin can grant manager or admin access later.
-            </p>
+
 
             {/* BUTTON */}
             <Button

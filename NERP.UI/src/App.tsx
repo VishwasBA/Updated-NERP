@@ -11,6 +11,7 @@ import AppLayout from "@/components/layout/AppLayout";
 const Index = lazy(() => import("./pages/Index"));
 const Appreciate = lazy(() => import("./pages/Appreciate"));
 const Nominations = lazy(() => import("./pages/Nominations"));
+const Nominate = lazy(() => import("./pages/Nominate"));
 const Leaderboard = lazy(() => import("./pages/Leaderboard"));
 const Marketplace = lazy(() => import("./pages/Marketplace"));
 const MyRecognitions = lazy(() => import("./pages/MyRecognitions"));
@@ -66,6 +67,7 @@ const App = () => (
                         <Route path="/" element={<Index />} />
                         <Route path="/appreciate" element={<Appreciate />} />
                         <Route path="/nominations" element={<Nominations />} />
+                        <Route path="/nominate" element={<Nominate />} />
                         <Route path="/leaderboard" element={<Leaderboard />} />
                         <Route path="/profile" element={<Profile />} />
                         <Route path="/redeem" element={<Marketplace />} />
@@ -73,9 +75,10 @@ const App = () => (
                         <Route
                           path="/manager-dashboard"
                           element={
-                            <RoleRoute roles={["manager", "admin"]}>
+                            <RoleRoute roles={["cu_manager", "bu_manager", "admin"]}>
                               <ManagerDashboard />
                             </RoleRoute>
+
                           }
                         />
                         <Route path="/history" element={<History />} />

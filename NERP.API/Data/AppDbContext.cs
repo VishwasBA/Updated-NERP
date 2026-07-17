@@ -15,6 +15,9 @@ public class AppDbContext : DbContext
     public DbSet<RewardRedemption> RewardRedemptions => Set<RewardRedemption>();
     public DbSet<RecognitionLike> RecognitionLikes => Set<RecognitionLike>();
     public DbSet<RecognitionComment> RecognitionComments => Set<RecognitionComment>();
+    public DbSet<NominationAudit> NominationAudits => Set<NominationAudit>();
+    public DbSet<PointsAudit> PointsAudits => Set<PointsAudit>();
+
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -187,30 +190,73 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<Employee>()
             .HasIndex(e => e.TotalPoints);
 
+        // Configure new relations for NominationAudit and PointsAudit
+        modelBuilder.Entity<Recognition>()
+            .HasOne(r => r.BUManager)
+            .WithMany()
+            .HasForeignKey(r => r.BUManagerId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<Recognition>()
+            .HasOne(r => r.HRAdmin)
+            .WithMany()
+            .HasForeignKey(r => r.HRAdminId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<NominationAudit>()
+            .HasOne(a => a.Recognition)
+            .WithMany(r => r.Audits)
+            .HasForeignKey(a => a.RecognitionId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<PointsAudit>()
+            .HasOne(p => p.Employee)
+            .WithMany()
+            .HasForeignKey(p => p.EmployeeId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<PointsAudit>()
+            .HasOne(p => p.Recognition)
+            .WithMany()
+            .HasForeignKey(p => p.RecognitionId)
+            .OnDelete(DeleteBehavior.SetNull);
+
         // Seed award categories
         modelBuilder.Entity<AwardCategory>().HasData(
-            new AwardCategory { Id = 1, Name = "Star of the Month", Description = "Outstanding performance and dedication", Points = 500, Icon = "⭐", ManagerOnly = true },
-            new AwardCategory { Id = 2, Name = "Employee of the Month", Description = "Consistently exceeds expectations", Points = 1000, Icon = "🏆", ManagerOnly = true },
-            new AwardCategory { Id = 3, Name = "Team Player", Description = "Exceptional collaboration and teamwork", Points = 200, Icon = "🤝", ManagerOnly = false },
-            new AwardCategory { Id = 4, Name = "Innovation Champion", Description = "Creative solutions and new ideas", Points = 300, Icon = "💡", ManagerOnly = true },
-            new AwardCategory { Id = 5, Name = "Helping Hand", Description = "Goes above and beyond to help others", Points = 150, Icon = "🙌", ManagerOnly = false },
-            new AwardCategory { Id = 6, Name = "Quick Learner", Description = "Rapid skill development and growth", Points = 100, Icon = "🚀", ManagerOnly = false }
+            new AwardCategory { Id = 3, Name = "Team Player", Description = "Exceptional collaboration and teamwork", Points = 200, Icon = "🤝", ManagerOnly = false, AwardType = "appreciation" },
+            new AwardCategory { Id = 5, Name = "Helping Hand", Description = "Goes above and beyond to help others", Points = 150, Icon = "🙌", ManagerOnly = false, AwardType = "appreciation" },
+            new AwardCategory { Id = 6, Name = "Quick Learner", Description = "Rapid skill development and growth", Points = 100, Icon = "🚀", ManagerOnly = false, AwardType = "appreciation" },
+            new AwardCategory { Id = 7, Name = "Customer Focus", Description = "Customer-centric dedication and service", Points = 500, Icon = "🎯", ManagerOnly = true, AwardType = "spot" },
+            new AwardCategory { Id = 8, Name = "Manages Ambiguity", Description = "Succeeds even in complex or uncertain conditions", Points = 500, Icon = "🌀", ManagerOnly = true, AwardType = "spot" },
+            new AwardCategory { Id = 9, Name = "Self Development", Description = "Commitment to learning and self-improvement", Points = 500, Icon = "📚", ManagerOnly = true, AwardType = "spot" },
+            new AwardCategory { Id = 10, Name = "Action Oriented", Description = "Proactive drive and bias for action", Points = 500, Icon = "⚡", ManagerOnly = true, AwardType = "spot" },
+            new AwardCategory { Id = 11, Name = "Ensures Accountability", Description = "Takes ownership and follows through", Points = 500, Icon = "🤝", ManagerOnly = true, AwardType = "spot" },
+            new AwardCategory { Id = 12, Name = "Drives Result", Description = "Focus on output and results", Points = 500, Icon = "📈", ManagerOnly = true, AwardType = "spot" },
+            new AwardCategory { Id = 13, Name = "Innovation Award (BA)", Description = "Exceptional innovation and creative solutions", Points = 500, Icon = "💡", ManagerOnly = true, AwardType = "spot" },
+            new AwardCategory { Id = 14, Name = "Employee of the Quarter", Description = "Outstanding performance this quarter", Points = 2000, Icon = "🏆", ManagerOnly = true, AwardType = "performance" },
+            new AwardCategory { Id = 15, Name = "Rising Star (BA)", Description = "Promising talent within first 6 months", Points = 3000, Icon = "✨", ManagerOnly = true, AwardType = "performance" }
         );
 
-        // Seed a default admin user (password: Admin@123)
+        string defaultPassHash = BCrypt.Net.BCrypt.HashPassword("Admin@123");
+
+        // Seed employees (admin, managers, employees in hierarchy)
         modelBuilder.Entity<Employee>().HasData(
-            new Employee
-            {
-                Id = 1,
-                Name = "Admin User",
-                Email = "admin@company.com",
-                PasswordHash = BCrypt.Net.BCrypt.HashPassword("Admin@123"),
-                Department = "HR",
-                Role = "HR Manager",
-                UserRole = "admin",
-                TotalPoints = 0,
-                Avatar = "AU"
-            }
-        );
+    new Employee
+    {
+        Id = 1,
+        Name = "Admin User",
+        Email = "admin@company.com",
+        PasswordHash = defaultPassHash,
+        Department = "HR",
+        Role = "HR Manager",
+        UserRole = "admin",
+        TotalPoints = 0,
+        Avatar = "AU",
+        IsActive = true,
+        Location = "Sweden",
+        JoiningDate = new DateOnly(2021,1,1)
+    }
+);
     }
 }
+

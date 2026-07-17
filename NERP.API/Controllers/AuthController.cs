@@ -58,16 +58,24 @@ public class AuthController : ControllerBase
         var avatar = string.Concat(initials);
         if (string.IsNullOrEmpty(avatar)) avatar = "NA";
 
+        var userRole = req.UserRole ?? "employee";
+        var displayRole = req.Role;
+        if (userRole == "admin") displayRole = "HR/Admin";
+        else if (userRole == "bu_manager") displayRole = "BU Lead";
+        else if (userRole == "cu_manager") displayRole = "CU Lead";
+        else if (userRole == "employee") displayRole = "Associate";
+
         var employee = new Employee
         {
             Name = req.Name,
             Email = req.Email,
             PasswordHash = BCrypt.Net.BCrypt.HashPassword(req.Password),
             Department = req.Department,
-            Role = req.Role,
-            UserRole = "employee",
+            Role = displayRole,
+            UserRole = userRole,
             Avatar = avatar
         };
+
 
         _db.Employees.Add(employee);
         try

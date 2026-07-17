@@ -1,16 +1,13 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { UserAvatar } from "@/components/ui/avatar";
-import { Award, Lock, ArrowRight } from "lucide-react";
-import { useLocation } from "react-router-dom";
+import { Award, Lock, ArrowRight, Heart } from "lucide-react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   useEmployees,
-  useAwardCategories,
-  useCreateRecognition,
   useRecentApprovedNominations,
 } from "@/hooks/useApiData";
-import { toast } from "sonner";
-import NominationWizard from "@/components/nomination/NominationWizard";
+import { Button } from "@/components/ui/button";
 
 /** API returns category as an object {id,name,...} — safely extract name */
 function safeCatName(category: unknown): string {
@@ -35,41 +32,15 @@ function timeAgo(dateStr: string): string {
 export default function Nominations() {
   const { user } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
   const { data: employees = [], isLoading: employeesLoading } = useEmployees();
-  const { data: categories = [], isLoading: categoriesLoading } = useAwardCategories();
-  const { data: recentNominations = [] } = useRecentApprovedNominations(4);
-  const createMutation = useCreateRecognition();
+  const { data: recentNominations = [], isLoading: recentLoading } = useRecentApprovedNominations(4);
 
-  // Deep-linked from the Manager Dashboard's "Nominate" action on an
+  // Deep-linked from the Manager Dashboard's "Recognize" action on an
   // under-recognized team member — pre-selects them in the wizard.
   const prefillEmployeeId = (location.state as { employeeId?: number } | null)?.employeeId ?? null;
 
-  const isManager = user?.userRole === "manager" || user?.userRole === "admin";
-  const managerCategories = categories.filter((c) => c.managerOnly);
-
-  const handleNominate = async ({
-    toEmployeeId,
-    categoryId,
-    message,
-  }: {
-    toEmployeeId: number;
-    categoryId: number;
-    message: string;
-  }) => {
-    try {
-      await createMutation.mutateAsync({
-        toEmployeeId,
-        message,
-        categoryId,
-        type: "nomination",
-      });
-      toast.success("Nomination submitted for approval! 🏆");
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Failed to submit nomination";
-      toast.error(msg);
-      throw err;
-    }
-  };
+  const isManager = user?.userRole === "cu_manager" || user?.userRole === "bu_manager" || user?.userRole === "admin";
 
   if (!isManager) {
     return (
@@ -89,12 +60,12 @@ export default function Nominations() {
     );
   }
 
-  if (employeesLoading || categoriesLoading) {
+  if (employeesLoading || recentLoading) {
     return (
       <div className="mx-auto max-w-2xl p-6">
         <Card className="glass-card py-16 text-center">
           <CardContent>
-            <p className="text-muted-foreground">Loading nomination form...</p>
+            <p className="text-muted-foreground">Loading nominations dashboard...</p>
           </CardContent>
         </Card>
       </div>
@@ -103,27 +74,68 @@ export default function Nominations() {
 
   return (
     <div className="container-page space-y-6">
-      <div>
-        <h1 className="flex items-center gap-2 text-3xl font-bold">
-          New Nomination
-          <Award className="h-7 w-7 text-primary" />
-        </h1>
-        <p className="mt-1 text-muted-foreground">Recognize outstanding employees with formal nominations</p>
+      <div className="flex items-start justify-between flex-wrap gap-3">
+        <div>
+          <h1 className="flex items-center gap-2 text-3xl font-bold">
+            Nominate Dashboard
+            <Award className="h-7 w-7 text-primary" />
+          </h1>
+          <p className="mt-1 text-muted-foreground">Recognize outstanding employees with formal nominations and appreciations</p>
+        </div>
       </div>
 
-      <NominationWizard
-        heading="New Nomination"
-        categories={managerCategories}
-        employees={employees}
-        currentUserId={user?.id}
-        isSubmitting={createMutation.isPending}
-        submitLabel="Submit Nomination"
-        successTitle="Nomination Submitted!"
-        successMessage="The nomination will be reviewed for approval before it's added to the Wall of Fame."
-        footerNote="Your nomination will be sent to the admin for approval."
-        onSubmit={handleNominate}
-        initialEmployeeId={prefillEmployeeId}
-      />
+      {/* Quick Navigation Cards */}
+      <div className="grid gap-4 sm:grid-cols-2">
+        {/* Card 1: Send Appreciation */}
+        <Card className="rounded-2xl border border-slate-200/80 bg-white dark:border-slate-800 dark:bg-slate-950 p-5 shadow-sm hover:shadow-md transition duration-200 flex flex-col justify-between h-full group hover:border-pink-200 dark:hover:border-pink-900/50">
+          <CardContent className="p-0 flex flex-col h-full justify-between">
+            <div className="flex items-start gap-4">
+              <div className="rounded-2xl bg-pink-50 dark:bg-pink-950/30 p-3 text-pink-600 dark:text-pink-400 group-hover:scale-110 transition duration-200 shrink-0">
+                <Heart className="h-6 w-6 fill-current" />
+              </div>
+              <div>
+                <h3 className="font-bold text-slate-900 dark:text-white text-base">Send Appreciation</h3>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Recognize employees instantly through Kudos/Appreciation.
+                </p>
+              </div>
+            </div>
+            <div className="mt-4 pt-2">
+              <Button
+                onClick={() => navigate("/appreciate", { state: { employeeId: prefillEmployeeId } })}
+                className="w-full sm:w-auto bg-pink-600 text-white hover:bg-pink-700 font-semibold gap-1.5 rounded-xl transition"
+              >
+                Go to Appreciation <ArrowRight className="h-4 w-4" />
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Card 2: Create Nomination */}
+        <Card className="rounded-2xl border border-slate-200/80 bg-white dark:border-slate-800 dark:bg-slate-950 p-5 shadow-sm hover:shadow-md transition duration-200 flex flex-col justify-between h-full group hover:border-indigo-200 dark:hover:border-indigo-900/50">
+          <CardContent className="p-0 flex flex-col h-full justify-between">
+            <div className="flex items-start gap-4">
+              <div className="rounded-2xl bg-indigo-50 dark:bg-indigo-950/30 p-3 text-indigo-600 dark:text-indigo-400 group-hover:scale-110 transition duration-200 shrink-0">
+                <Award className="h-6 w-6" />
+              </div>
+              <div>
+                <h3 className="font-bold text-slate-900 dark:text-white text-base">Create Nomination</h3>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Nominate employees for Spot Awards and Performance Awards.
+                </p>
+              </div>
+            </div>
+            <div className="mt-4 pt-2">
+              <Button
+                onClick={() => navigate("/nominate", { state: { employeeId: prefillEmployeeId } })}
+                className="w-full sm:w-auto bg-indigo-600 text-white hover:bg-indigo-700 font-semibold gap-1.5 rounded-xl transition"
+              >
+                Create Nomination <ArrowRight className="h-4 w-4" />
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
 
       {/* Recent Approved Nominations */}
       <div className="border-t border-border pt-6">

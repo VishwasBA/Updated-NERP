@@ -23,7 +23,8 @@ public class AuthService
             new Claim(ClaimTypes.Email, employee.Email),
             new Claim(ClaimTypes.Name, employee.Name),
             new Claim("userRole", employee.UserRole),
-            new Claim(ClaimTypes.Role, employee.UserRole)
+            new Claim(ClaimTypes.Role, employee.UserRole == "cu_manager" || employee.UserRole == "bu_manager" ? "manager" : employee.UserRole)
+
         };
 
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_config["Jwt:Key"]!));

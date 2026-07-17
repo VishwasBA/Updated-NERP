@@ -85,8 +85,9 @@ export default function AppreciationCard({ recognition }: Props) {
         {/* Category */}
         <div className="mt-5 rounded-full border border-[#A9824C]/30 bg-[#F4ECDD] px-5 py-1.5">
           <p className="text-[12px] font-semibold uppercase tracking-[1.5px] text-[#A9824C]">
-            {recognition.category?.name || "Employee Recognition"}
+            {recognition.category?.name || recognition.customCategory || "Employee Recognition"}
           </p>
+
         </div>
 
         {/* Message */}

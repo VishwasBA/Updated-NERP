@@ -58,8 +58,9 @@ export default function AwardCertificate({ recognition }: Props) {
 
         <div className="mt-6 rounded-full border border-[#A9824C]/40 bg-[#A9824C]/10 px-5 py-1.5">
           <p className="text-[12px] font-semibold uppercase tracking-[1.5px] text-[#D9B575]">
-            {recognition.category?.name || "Nexer Award"}
+            {recognition.category?.name || recognition.customCategory || "Nexer Award"}
           </p>
+
         </div>
 
         <p className="mt-5 max-w-[640px] text-center text-[13.5px] leading-7 text-white/55 italic font-medium">

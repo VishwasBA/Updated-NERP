@@ -2,15 +2,15 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { UserAvatar } from "@/components/ui/avatar";
 import { useAuth } from "@/contexts/AuthContext";
-import { Star, TrendingUp, Heart, MoreVertical, Calendar, Clock } from "lucide-react";
+import { Star, TrendingUp, Heart, MoreVertical, Calendar, Clock, Download } from "lucide-react";
 import { recognitionsApi, ApiRecognition } from "@/services/api";
-import { useApproveRecognition, useRejectRecognition } from "@/hooks/useApiData";
 import { useEffect, useState } from "react";
 import AppreciationCard from "@/components/AppreciationCard";
 import AwardCertificate from "@/components/AwardCertificate";
 import html2canvas from "html2canvas";
-import { Download } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { toast } from "sonner";
+
 
 function timeAgo(dateStr?: string) {
   if (!dateStr) return "";
@@ -23,11 +23,20 @@ function timeAgo(dateStr?: string) {
   return `${weeks}w ago`;
 }
 
+const getTenureMonths = (joiningDateStr?: string) => {
+  if (!joiningDateStr) return 0;
+  const joinDate = new Date(joiningDateStr);
+  const diffTime = Date.now() - joinDate.getTime();
+  const diffDays = diffTime / (1000 * 60 * 60 * 24);
+  return Number((diffDays / 30.4375).toFixed(1));
+};
+
 export default function History() {
   const { user } = useAuth();
   const [receivedRecognitions, setReceivedRecognitions] = useState<ApiRecognition[]>([]);
   const [sentRecognitions, setSentRecognitions] = useState<ApiRecognition[]>([]);
-  const [pendingNominations, setPendingNominations] = useState<ApiRecognition[]>([]);
+  const [pendingApprovals, setPendingApprovals] = useState<ApiRecognition[]>([]);
+  const [decisionComments, setDecisionComments] = useState<Record<number, string>>({});
   const [totalReceivedCount, setTotalReceivedCount] = useState(0);
   const [totalSentCount, setTotalSentCount] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
@@ -56,8 +65,10 @@ export default function History() {
 
   const fetchSent = async (page: number, type: string) => {
     try {
-      const currentFilter = user?.userRole === "admin" ? type : "appreciation";
+      const isManagerOrAdmin = user?.userRole === "admin" || user?.userRole === "bu_manager" || user?.userRole === "cu_manager";
+      const currentFilter = isManagerOrAdmin ? type : "appreciation";
       const data = await recognitionsApi.getMy({
+
         direction: "sent",
         page,
         pageSize: 5,
@@ -76,9 +87,10 @@ export default function History() {
       const allSent = await recognitionsApi.getMy({ direction: "sent", pageSize: 10000 });
       setTotalSentCount(allSent.length);
 
-      if (user?.userRole === "admin") {
-        const pending = await recognitionsApi.getMy({ page: 1, pageSize: 100 });
-        setPendingNominations(pending);
+      const isApprover = user?.userRole === "bu_manager" || user?.userRole === "admin";
+      if (isApprover) {
+        const pending = await recognitionsApi.getPendingApprovals();
+        setPendingApprovals(pending);
       }
     } catch (err) {
       console.error(err);
@@ -123,28 +135,54 @@ export default function History() {
     setSentPage(1);
   };
 
-  const approveMutation = useApproveRecognition();
-  const rejectMutation = useRejectRecognition();
-
-  const handleApprove = async (id: number) => {
+  const handleBuDecision = async (id: number, decision: "approve" | "reject" | "shortlist") => {
     try {
-      await approveMutation.mutateAsync(id);
+      const comments = decisionComments[id] || "";
+      await recognitionsApi.buDecision(id, decision, comments);
+      setDecisionComments(prev => {
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
+      if (decision === "approve") {
+        toast.success("Spot Award nomination approved! 🎉");
+      } else if (decision === "shortlist") {
+        toast.success("Performance nomination shortlisted! 🚀");
+      } else {
+        toast.success("Nomination rejected ❌");
+      }
       await fetchStats();
       await fetchReceived(receivedPage, receivedFilter);
-    } catch (err) {
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Action failed";
+      toast.error(message);
       console.error(err);
     }
   };
 
-  const handleReject = async (id: number) => {
+  const handleHrDecision = async (id: number, decision: "select" | "reject") => {
     try {
-      await rejectMutation.mutateAsync(id);
+      const comments = decisionComments[id] || "";
+      await recognitionsApi.hrDecision(id, decision, comments);
+      setDecisionComments(prev => {
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
+      if (decision === "select") {
+        toast.success("Award winner selected! 🏆");
+      } else {
+        toast.success("Nomination rejected ❌");
+      }
       await fetchStats();
       await fetchReceived(receivedPage, receivedFilter);
-    } catch (err) {
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Action failed";
+      toast.error(message);
       console.error(err);
     }
   };
+
 
   const downloadCard = async (id: number) => {
     const card = document.getElementById(`card-${id}`);
@@ -171,8 +209,6 @@ export default function History() {
 
   const received = receivedRecognitions;
   const sent = sentRecognitions;
-  const filteredReceived = receivedRecognitions;
-  const filteredSent = sentRecognitions;
   const totalPoints = user?.totalPoints ?? 0;
   const totalRecognitions = totalReceivedCount + totalSentCount;
 
@@ -190,9 +226,8 @@ export default function History() {
           <h1 className="text-xl font-bold flex items-center gap-2 text-slate-950 dark:text-white">
             History 🏅
           </h1>
-          <p className="text-xs text-slate-500 dark:text-slate-400">Your recognition history, points, and approvals</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400">Your recognition history and points</p>
         </div>
-        
       </div>
 
       {/* STATS */}
@@ -209,31 +244,17 @@ export default function History() {
           </CardContent>
         </Card>
 
-        {user?.userRole === "admin" ? (
-          <Card className="rounded-xl border-blue-200 bg-gradient-to-r from-blue-50 to-indigo-50 dark:border-blue-900/40 dark:from-blue-950/30 dark:to-indigo-950/20">
-            <CardContent className="flex items-center gap-4 p-5 min-h-[110px]">
-              <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-primary text-white shrink-0">
-                <Clock className="h-4 w-4" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold leading-none">{pendingNominations.length}</p>
-                <p className="text-xs text-muted-foreground">Pending Approvals</p>
-              </div>
-            </CardContent>
-          </Card>
-        ) : (
-          <Card className="rounded-xl border-green-200 bg-gradient-to-r from-green-50 to-emerald-50 dark:border-green-900/40 dark:from-green-950/30 dark:to-emerald-950/20">
-            <CardContent className="flex items-center gap-4 p-5 min-h-[110px]">
-              <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-primary text-white shrink-0">
-                <TrendingUp className="h-4 w-4" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold leading-none">{received.length}</p>
-                <p className="text-xs text-muted-foreground">Received</p>
-              </div>
-            </CardContent>
-          </Card>
-        )}
+        <Card className="rounded-xl border-green-200 bg-gradient-to-r from-green-50 to-emerald-50 dark:border-green-900/40 dark:from-green-950/30 dark:to-emerald-950/20">
+          <CardContent className="flex items-center gap-4 p-5 min-h-[110px]">
+            <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-primary text-white shrink-0">
+              <TrendingUp className="h-4 w-4" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold leading-none">{received.length}</p>
+              <p className="text-xs text-muted-foreground">Received</p>
+            </div>
+          </CardContent>
+        </Card>
 
         <Card className="rounded-xl border-rose-200 bg-gradient-to-r from-rose-50 to-pink-50 dark:border-rose-900/40 dark:from-rose-950/30 dark:to-pink-950/20">
           <CardContent className="flex items-center gap-4 p-5 min-h-[110px]">
@@ -248,74 +269,17 @@ export default function History() {
         </Card>
       </div>
 
-      {/* MAIN GRID: content + sidebar */}
+      {/* MAIN GRID */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 flex-1 min-h-0">
         <div className="xl:col-span-2 space-y-4 min-h-0">
-          {/* ADMIN / PENDING NOMINATIONS */}
-          {user?.userRole === "admin" && (
-            <Card className="rounded-2xl border-primary/20">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0">
-                <CardTitle className="text-lg">Pending Nominations</CardTitle>
-                {pendingNominations.length > 5 && (
-                  <button
-                    onClick={() => setShowAllReceived(!showAllReceived)}
-                    className="text-sm font-semibold text-blue-600 hover:text-blue-700"
-                  >
-                    {showAllReceived ? "Show Less" : "View all"}
-                  </button>
-                )}
-              </CardHeader>
-              <CardContent className="space-y-2">
-                {(showAllReceived ? pendingNominations : pendingNominations.slice(0, 5)).map((r) => (
-                  <div key={r.id} className="flex flex-col gap-3 rounded-xl border border-slate-100 px-3 py-3 hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-900/50 sm:flex-row sm:items-start">
-                    <UserAvatar name={r.fromEmployee?.name} avatar={r.fromEmployee?.avatar} size="h-9 w-9" fallbackClassName="text-xs" />
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-x-1 gap-y-0.5 text-sm">
-                        <span className="font-semibold text-blue-600">{r.fromEmployee?.name}</span>
-                        <span>nominated</span>
-                        <span className="font-semibold text-blue-600">{r.toEmployee?.name}</span>
-                        {r.category && (
-                          <Badge variant="secondary" className="ml-1 gap-1">
-                            {r.category.icon} {r.category.name} · +{r.points} pts
-                          </Badge>
-                        )}
-                      </div>
-                      {/* Full nomination message — admins need this in full to
-                          make an informed approve/reject decision, so this is
-                          deliberately not truncated. */}
-                      <p className="mt-1.5 whitespace-pre-wrap rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-700 dark:bg-slate-900/60 dark:text-slate-300">
-                        "{r.message}"
-                      </p>
-                    </div>
-                    <div className="flex shrink-0 gap-2 sm:mt-0.5">
-                      <button
-                        onClick={() => handleApprove(r.id)}
-                        className="px-3 h-8 text-xs font-medium bg-green-100 text-green-700 rounded-lg hover:bg-green-200"
-                      >
-                        Approve
-                      </button>
-                      <button
-                        onClick={() => handleReject(r.id)}
-                        className="px-3 h-8 text-xs font-medium bg-red-100 text-red-700 rounded-lg hover:bg-red-200"
-                      >
-                        Reject
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
-          )}
-
+          
           {/* RECOGNITIONS RECEIVED */}
-          {user?.userRole !== "admin" && (
-            <Card className="rounded-2xl border-primary/20">
+          <Card className="rounded-2xl border-primary/20">
               <CardHeader className="flex flex-row items-center justify-between space-y-0">
                 <div className="flex items-center gap-2">
                   <span>🏅</span>
                   <CardTitle className="text-lg">Recognitions Received</CardTitle>
                 </div>
-                
               </CardHeader>
 
               <div className="flex gap-2 px-6 pb-2">
@@ -332,10 +296,10 @@ export default function History() {
               </div>
 
               <CardContent className="space-y-1 pt-2">
-                {filteredReceived.length === 0 ? (
+                {received.length === 0 ? (
                   <p className="text-muted-foreground text-sm text-center py-8">No data available</p>
                 ) : (
-                  filteredReceived.map((r) => (
+                  received.map((r) => (
                     <div key={r.id} className="flex items-start gap-3 rounded-xl px-2 py-3 hover:bg-slate-50 dark:hover:bg-slate-900/50">
                       <UserAvatar name={r.fromEmployee?.name} avatar={r.fromEmployee?.avatar} size="h-9 w-9" fallbackClassName="text-xs" />
 
@@ -348,13 +312,17 @@ export default function History() {
                         <p className="text-sm text-muted-foreground mt-0.5 truncate">{r.message}</p>
 
                         <div className="flex flex-wrap items-center gap-2 mt-2">
-                          {r.category && (
+                          {r.category ? (
                             <Badge variant="secondary" className="text-xs">
                               {r.category.icon} {r.category.name}
                             </Badge>
-                          )}
+                          ) : r.customCategory ? (
+                            <Badge variant="secondary" className="text-xs">
+                              ✨ {r.customCategory}
+                            </Badge>
+                          ) : null}
                           {r.type === "nomination" && (
-                            <span className="text-xs font-medium text-gold">+{r.points} pts</span>
+                            <span className="text-xs font-medium text-amber-600 dark:text-amber-400">+{r.points} pts</span>
                           )}
                         </div>
                       </div>
@@ -416,7 +384,7 @@ export default function History() {
                   >
                     Previous
                   </button>
-                  <span className="text-xs text-muted-foreground">
+                  <span className="text-xs text-muted-foreground flex items-center">
                     Page {receivedPage}
                   </span>
                   <button
@@ -429,7 +397,6 @@ export default function History() {
                 </div>
               </CardContent>
             </Card>
-          )}
 
           {/* RECOGNITIONS SENT */}
           <Card className="rounded-2xl border-primary/20">
@@ -441,7 +408,7 @@ export default function History() {
             </CardHeader>
 
             <div className="flex gap-2 px-6 pb-2">
-              {user?.userRole === "admin" ? (
+              {user?.userRole === "admin" || user?.userRole === "bu_manager" || user?.userRole === "cu_manager" ? (
                 filterTypes.map((type) => (
                   <button
                     key={type}
@@ -450,7 +417,7 @@ export default function History() {
                       sentFilter === type ? "bg-primary text-white" : "bg-muted hover:bg-muted/70"
                     }`}
                   >
-                    {type === "all" ? "All" : type === "appreciation" ? "Appreciations" : "Approved Nominations"}
+                    {type === "all" ? "All" : type === "appreciation" ? "Appreciations" : "Nominations"}
                   </button>
                 ))
               ) : (
@@ -463,37 +430,53 @@ export default function History() {
             </div>
 
             <CardContent className="space-y-1 pt-2">
-              {filteredSent.length === 0 ? (
+              {sent.length === 0 ? (
                 <p className="text-muted-foreground text-sm text-center py-8">No recognitions sent yet</p>
               ) : (
-                filteredSent.map((r) => (
-                  <div key={r.id} className="flex items-start gap-3 rounded-xl px-2 py-3 hover:bg-slate-50 dark:hover:bg-slate-900/50">
-                    <UserAvatar name={r.toEmployee?.name} avatar={r.toEmployee?.avatar} size="h-9 w-9" fallbackClassName="text-xs" />
+                sent.map((r) => {
+                  const awardName = r.category?.name ?? r.customCategory ?? "Spot Award";
+                  return (
+                    <div key={r.id} className="flex items-start gap-3 rounded-xl px-2 py-3 hover:bg-slate-50 dark:hover:bg-slate-900/50">
+                      <UserAvatar name={r.toEmployee?.name} avatar={r.toEmployee?.avatar} size="h-9 w-9" fallbackClassName="text-xs" />
 
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm">
-                        You recognized <span className="font-semibold">{r.toEmployee?.name}</span>
-                      </p>
-                      <p className="text-sm text-muted-foreground mt-0.5 truncate">{r.message}</p>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm">
+                          You recognized <span className="font-semibold">{r.toEmployee?.name}</span>
+                        </p>
+                        <p className="text-sm text-muted-foreground mt-0.5 truncate">{r.message}</p>
 
-                      <div className="flex flex-wrap items-center gap-2 mt-2">
-                        {r.category && (
-                          <Badge variant="secondary" className="text-xs border-primary/20">
-                            {r.category.icon} {r.category.name}
+                        <div className="flex flex-wrap items-center gap-2 mt-2">
+                          {r.category ? (
+                            <Badge variant="secondary" className="text-xs border-primary/20">
+                              {r.category.icon} {r.category.name}
+                            </Badge>
+                          ) : r.customCategory ? (
+                            <Badge variant="secondary" className="text-xs border-primary/20">
+                              ✨ {r.customCategory}
+                            </Badge>
+                          ) : null}
+                          {r.type === "nomination" && (
+                            <span className="text-xs font-medium text-amber-600 dark:text-amber-400">+{r.points} pts</span>
+                          )}
+                          <Badge variant="outline" className={cn("text-[10px] px-1.5 py-0.5", 
+                            r.status === "Approved" || r.status === "Approved Winner" || r.status === "approved"
+                              ? "border-green-200 text-green-700 bg-green-50 dark:bg-green-950/30"
+                              : r.status === "Rejected"
+                              ? "border-red-200 text-red-700 bg-red-50 dark:bg-red-950/30"
+                              : "border-amber-200 text-amber-700 bg-amber-50 dark:bg-amber-950/30"
+                          )}>
+                            Status: {r.status}
                           </Badge>
-                        )}
-                        {r.type === "nomination" && (
-                          <span className="text-xs font-medium text-gold">+{r.points} pts</span>
-                        )}
+                        </div>
+                      </div>
+
+                      <div className="flex shrink-0 items-center gap-2 text-xs text-muted-foreground">
+                        {timeAgo(r.createdAt)}
+                        <MoreVertical className="h-4 w-4" />
                       </div>
                     </div>
-
-                    <div className="flex shrink-0 items-center gap-2 text-xs text-muted-foreground">
-                      {timeAgo(r.createdAt)}
-                      <MoreVertical className="h-4 w-4" />
-                    </div>
-                  </div>
-                ))
+                  );
+                })
               )}
               <div className="flex items-center justify-between pt-4 border-t">
                 <button
@@ -503,7 +486,7 @@ export default function History() {
                 >
                   Previous
                 </button>
-                <span className="text-xs text-muted-foreground">
+                <span className="text-xs text-muted-foreground flex items-center">
                   Page {sentPage}
                 </span>
                 <button
@@ -546,13 +529,13 @@ export default function History() {
                   <p className="text-xs text-muted-foreground">Total Points</p>
                 </div>
               </div>
-              {user?.userRole === "admin" ? (
+              {user?.userRole === "admin" || user?.userRole === "bu_manager" ? (
                 <div className="flex items-center gap-3">
                   <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-500/90 text-white">
                     <Clock className="h-4 w-4" />
                   </div>
                   <div>
-                    <p className="font-semibold leading-tight">{pendingNominations.length}</p>
+                    <p className="font-semibold leading-tight">{pendingApprovals.length}</p>
                     <p className="text-xs text-muted-foreground">Pending Approvals</p>
                   </div>
                 </div>
@@ -585,8 +568,6 @@ export default function History() {
                   <p className="text-xs text-muted-foreground">Total Recognitions</p>
                 </div>
               </div>
-
-
             </CardContent>
           </Card>
         </div>

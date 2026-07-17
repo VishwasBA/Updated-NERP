@@ -42,7 +42,7 @@ export default function MyRecognitions() {
         avatar: r.toEmployee?.avatar,
         location: r.toEmployee?.location,
         company: COMPANY_NAME,
-        title: r.category?.name ?? "Recognition Award",
+        title: r.category?.name ?? r.customCategory ?? "Recognition Award",
         fromLabel: r.fromEmployee?.name ?? "NERP Team",
         message: r.message,
         kind: "award" as const,
@@ -55,6 +55,7 @@ export default function MyRecognitions() {
       })),
     [awards, user?.id]
   );
+
 
   const milestoneCards: Card[] = useMemo(
     () =>

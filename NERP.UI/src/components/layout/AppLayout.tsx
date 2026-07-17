@@ -44,9 +44,10 @@ export default function AppLayout({ children }: { children: ReactNode }) {
       icon: Star,
     },
     { to: "/redeem", label: "Redeem", icon: Gift },
-    ...(user?.userRole === "manager" || user?.userRole === "admin"
+    ...(user?.userRole === "cu_manager" || user?.userRole === "bu_manager" || user?.userRole === "admin"
       ? [{ to: "/manager-dashboard", label: "My Team", icon: Users }]
       : []),
+
   ];
 
   const mobileExtraItems = [

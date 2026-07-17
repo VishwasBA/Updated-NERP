@@ -16,6 +16,17 @@ public class Recognition
     public Employee ToEmployee { get; set; } = null!;
     public AwardCategory? Category { get; set; }
 
+    public string? CustomCategory { get; set; }
+    public string? AwardCycle { get; set; }
+    public int? BUManagerId { get; set; }
+    public Employee? BUManager { get; set; }
+    public DateTime? BUDecisionDate { get; set; }
+    public int? HRAdminId { get; set; }
+    public Employee? HRAdmin { get; set; }
+    public DateTime? HRDecisionDate { get; set; }
+
     public ICollection<RecognitionLike> Likes { get; set; } = new List<RecognitionLike>();
     public ICollection<RecognitionComment> Comments { get; set; } = new List<RecognitionComment>();
+    public ICollection<NominationAudit> Audits { get; set; } = new List<NominationAudit>();
 }
+

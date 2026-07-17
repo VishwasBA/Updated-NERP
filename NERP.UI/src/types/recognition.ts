@@ -28,7 +28,8 @@ export interface AwardCategory {
   managerOnly: boolean;
 }
 
-export type UserRole = "employee" | "manager" | "admin";
+export type UserRole = "employee" | "manager" | "admin" | "cu_manager" | "bu_manager";
+
 
 export interface CurrentUser extends Employee {
   userRole: UserRole;

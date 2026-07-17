@@ -14,8 +14,8 @@ interface Props {
 export default function EmployeesWithoutRecognitionTable({ items, isLoading }: Props) {
   const navigate = useNavigate();
 
-  const goAppreciate = (employeeId: number) => navigate("/appreciate", { state: { employeeId } });
-  const goNominate = (employeeId: number) => navigate("/nominations", { state: { employeeId } });
+  const goAppreciate = (employeeId: number) => navigate("/nominations", { state: { employeeId } });
+  const goNominate = (employeeId: number) => navigate("/nominate", { state: { employeeId } });
 
   return (
     <Card className="rounded-2xl">

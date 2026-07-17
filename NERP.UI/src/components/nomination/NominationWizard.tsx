@@ -11,14 +11,19 @@ import {
   Mail,
   Briefcase,
   CheckCircle2,
+  Calendar,
 } from "lucide-react";
 import { UserAvatar } from "@/components/ui/avatar";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import type { ApiEmployee, ApiAwardCategory } from "@/services/api";
 
-export interface NominationWizardCategory extends ApiAwardCategory {}
-export interface NominationWizardEmployee extends ApiEmployee {}
+export interface NominationWizardCategory extends ApiAwardCategory {
+  awardType?: "spot" | "performance" | "appreciation";
+}
+export interface NominationWizardEmployee extends ApiEmployee {
+  joiningDate?: string;
+}
 
 interface StepDef {
   key: "award" | "recipient" | "details";
@@ -43,21 +48,28 @@ export interface NominationWizardProps {
   successTitle: string;
   successMessage: string;
   footerNote: string;
-  onSubmit: (payload: { toEmployeeId: number; categoryId: number; message: string }) => Promise<void> | void;
-  /** Pre-selects a recipient (e.g. deep-linked from the Manager Dashboard's
-   * "Nominate"/"Recognize" action) so it's already chosen once the user
-   * reaches the recipient step. */
+  onSubmit: (payload: {
+    toEmployeeId: number;
+    categoryId: number | null;
+    message: string;
+    customCategory?: string;
+    awardCycle?: string;
+  }) => Promise<void> | void;
   initialEmployeeId?: number | null;
-  /** Whether this flow actually awards the category's points. Kudos/
-   * appreciation sent by an employee never carries points (only a
-   * manager's nomination does) — set false so the wizard doesn't show a
-   * "+N pts" badge that wouldn't actually be granted. */
   pointsEnabled?: boolean;
-  /** Optional one-tap starter phrases shown above the message textarea. */
   quickTemplates?: { label: string; emoji: string; text: string }[];
 }
 
 const MESSAGE_LIMIT = 500;
+const AWARD_CYCLES = ["Q3 2026", "Q4 2026", "Q1 2027", "Q2 2027"];
+
+const getTenureMonths = (joiningDateStr?: string) => {
+  if (!joiningDateStr) return 0;
+  const joinDate = new Date(joiningDateStr);
+  const diffTime = Date.now() - joinDate.getTime();
+  const diffDays = diffTime / (1000 * 60 * 60 * 24);
+  return Number((diffDays / 30.4375).toFixed(1));
+};
 
 export default function NominationWizard({
   heading,
@@ -81,19 +93,38 @@ export default function NominationWizard({
   const [employeeId, setEmployeeId] = useState<number | null>(initialEmployeeId ?? null);
   const [message, setMessage] = useState("");
   const [sent, setSent] = useState(false);
+  const [customCategory, setCustomCategory] = useState("");
+  const [awardCycle, setAwardCycle] = useState("");
 
   const selectableEmployees = useMemo(
     () => employees.filter((e) => e.id !== currentUserId),
     [employees, currentUserId]
   );
 
+  const allCategories = useMemo(() => {
+    const isNomination = heading.toLowerCase().includes("nomination");
+    if (!isNomination) return categories;
+
+    const customOption: NominationWizardCategory = {
+      id: -1,
+      name: "Custom Spot Award",
+      description: "Nominate for a custom Spot Award category not listed here",
+      points: 500,
+      icon: "✨",
+      managerOnly: true,
+      awardType: "spot"
+    } as any;
+
+    return [...categories, customOption];
+  }, [categories, heading]);
+
   const filteredCategories = useMemo(() => {
     const q = awardSearch.trim().toLowerCase();
-    if (!q) return categories;
-    return categories.filter(
+    if (!q) return allCategories;
+    return allCategories.filter(
       (c) => c.name.toLowerCase().includes(q) || c.description.toLowerCase().includes(q)
     );
-  }, [categories, awardSearch]);
+  }, [allCategories, awardSearch]);
 
   const filteredEmployees = useMemo(() => {
     const q = empSearch.trim().toLowerCase();
@@ -106,15 +137,27 @@ export default function NominationWizard({
     );
   }, [selectableEmployees, empSearch]);
 
-  const selectedCategory = categories.find((c) => c.id === categoryId) ?? null;
+  const selectedCategory = allCategories.find((c) => c.id === categoryId) ?? null;
   const selectedEmployee = employees.find((e) => e.id === employeeId) ?? null;
 
+  const isRisingStar = selectedCategory?.name?.includes("Rising Star") || selectedCategory?.id === 15;
+  const tenureMonths = selectedEmployee?.joiningDate ? getTenureMonths(selectedEmployee.joiningDate) : null;
+  const isTenureInvalid = isRisingStar && tenureMonths !== null && tenureMonths > 6;
+
   const canAdvance =
-    (stepIdx === 0 && categoryId !== null) ||
+    (stepIdx === 0 && categoryId !== null && (categoryId !== -1 || customCategory.trim().length > 0)) ||
     (stepIdx === 1 && employeeId !== null) ||
     stepIdx === 2;
 
-  const canSubmit = categoryId !== null && employeeId !== null && message.trim().length > 0;
+  const isPerformance = selectedCategory?.awardType === "performance";
+
+  const canSubmit =
+    categoryId !== null &&
+    (categoryId !== -1 || customCategory.trim().length > 0) &&
+    employeeId !== null &&
+    (!isPerformance || !!awardCycle) &&
+    !isTenureInvalid &&
+    message.trim().length > 0;
 
   const goNext = () => {
     if (!canAdvance) return;
@@ -124,15 +167,20 @@ export default function NominationWizard({
     if (stepIdx > 0) setStepIdx((s) => s - 1);
   };
   const jumpTo = (idx: number) => {
-    // Only allow jumping to a step that's already reachable.
     if (idx === 0) return setStepIdx(0);
     if (idx === 1 && categoryId !== null) return setStepIdx(1);
     if (idx === 2 && categoryId !== null && employeeId !== null) return setStepIdx(2);
   };
 
   const handleSubmit = async () => {
-    if (!canSubmit || !categoryId || !employeeId) return;
-    await onSubmit({ toEmployeeId: employeeId, categoryId, message: message.trim() });
+    if (!canSubmit || employeeId === null) return;
+    await onSubmit({
+      toEmployeeId: employeeId,
+      categoryId: categoryId === -1 ? null : categoryId,
+      message: message.trim(),
+      customCategory: categoryId === -1 ? customCategory.trim() : undefined,
+      awardCycle: isPerformance ? awardCycle : undefined,
+    });
     setSent(true);
   };
 
@@ -144,6 +192,8 @@ export default function NominationWizard({
     setMessage("");
     setAwardSearch("");
     setEmpSearch("");
+    setCustomCategory("");
+    setAwardCycle("");
   };
 
   if (sent) {
@@ -287,42 +337,59 @@ export default function NominationWizard({
                 {filteredCategories.length === 0 ? (
                   <p className="py-10 text-center text-sm text-slate-400">No awards match your search.</p>
                 ) : (
-                  <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-                    {filteredCategories.map((cat) => {
-                      const isActive = categoryId === cat.id;
-                      return (
-                        <button
-                          key={cat.id}
-                          type="button"
-                          onClick={() => setCategoryId(cat.id)}
-                          className={cn(
-                            "group relative flex flex-col rounded-xl border bg-white p-4 text-left shadow-sm transition-all dark:bg-slate-950",
-                            isActive
-                              ? "border-blue-500 ring-2 ring-blue-500/30"
-                              : "border-slate-200 hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-md dark:border-slate-800"
-                          )}
-                        >
-                          {isActive && (
-                            <span className="absolute right-2 top-2 flex h-5 w-5 items-center justify-center rounded-full bg-blue-600 text-white">
-                              <Check className="h-3 w-3" />
-                            </span>
-                          )}
-                          <div className="mb-3 flex h-16 w-full items-center justify-center rounded-lg bg-gradient-to-br from-blue-50 to-indigo-100 text-3xl dark:from-blue-950/40 dark:to-indigo-950/30">
-                            {cat.icon || "🏆"}
-                          </div>
-                          <p className="text-sm font-bold text-slate-950 dark:text-white">{cat.name}</p>
-                          <div className="mt-2 border-t border-slate-100 pt-2 dark:border-slate-800">
-                            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Criteria</p>
-                            <p className="mt-0.5 line-clamp-2 text-xs text-slate-500 dark:text-slate-400">
-                              {cat.description}
+                  <div>
+                    <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+                      {filteredCategories.map((cat) => {
+                        const isActive = categoryId === cat.id;
+                        return (
+                          <button
+                            key={cat.id}
+                            type="button"
+                            onClick={() => setCategoryId(cat.id)}
+                            className={cn(
+                              "group relative flex flex-col rounded-xl border bg-white p-4 text-left shadow-sm transition-all dark:bg-slate-950",
+                              isActive
+                                ? "border-blue-500 ring-2 ring-blue-500/30"
+                                : "border-slate-200 hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-md dark:border-slate-800"
+                            )}
+                          >
+                            {isActive && (
+                              <span className="absolute right-2 top-2 flex h-5 w-5 items-center justify-center rounded-full bg-blue-600 text-white">
+                                <Check className="h-3 w-3" />
+                              </span>
+                            )}
+                            <div className="mb-3 flex h-16 w-full items-center justify-center rounded-lg bg-gradient-to-br from-blue-50 to-indigo-100 text-3xl dark:from-blue-950/40 dark:to-indigo-950/30">
+                              {cat.icon || "🏆"}
+                            </div>
+                            <p className="text-sm font-bold text-slate-950 dark:text-white">{cat.name}</p>
+                            <div className="mt-2 border-t border-slate-100 pt-2 dark:border-slate-800">
+                              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Criteria</p>
+                              <p className="mt-0.5 line-clamp-2 text-xs text-slate-500 dark:text-slate-400">
+                                {cat.description}
+                              </p>
+                            </div>
+                            <p className="mt-2 text-xs font-semibold text-blue-600 dark:text-sky-400">
+                              {pointsEnabled ? `+${cat.points} pts` : "Kudos · no points"}
                             </p>
-                          </div>
-                          <p className="mt-2 text-xs font-semibold text-blue-600 dark:text-sky-400">
-                            {pointsEnabled ? `+${cat.points} pts` : "Kudos · no points"}
-                          </p>
-                        </button>
-                      );
-                    })}
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {categoryId === -1 && (
+                      <div className="mt-6 rounded-xl border border-blue-200 bg-blue-50/50 p-4 dark:border-blue-900/40 dark:bg-blue-950/20 max-w-md">
+                        <label className="text-sm font-semibold text-slate-900 dark:text-white">
+                          Custom Category Name <span className="text-rose-500">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={customCategory}
+                          onChange={(e) => setCustomCategory(e.target.value)}
+                          placeholder="e.g. Integrity Leader, Technical Excellence..."
+                          className="mt-1.5 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/30 dark:border-slate-700 dark:bg-slate-900"
+                        />
+                      </div>
+                    )}
                   </div>
                 )}
               </motion.div>
@@ -402,6 +469,35 @@ export default function NominationWizard({
               >
                 <div>
                   <h3 className="mb-3 text-base font-bold text-slate-950 dark:text-white">Details</h3>
+                  
+                  {isTenureInvalid && (
+                    <div className="mb-4 rounded-xl border border-rose-200 bg-rose-50/50 p-4 dark:border-rose-950/40 dark:bg-rose-950/20">
+                      <p className="text-xs font-semibold text-rose-700 dark:text-rose-400">
+                        ❌ Not Eligible: "Rising Star (BA)" requires a maximum tenure of 6 months. {selectedEmployee?.name} has {tenureMonths} months of tenure (joined on {selectedEmployee?.joiningDate}).
+                      </p>
+                    </div>
+                  )}
+
+                  {isPerformance && (
+                    <div className="mb-4">
+                      <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                        Award Cycle <span className="text-rose-500">*</span>
+                      </label>
+                      <select
+                        value={awardCycle}
+                        onChange={(e) => setAwardCycle(e.target.value)}
+                        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/30 dark:border-slate-700 dark:bg-slate-900"
+                      >
+                        <option value="">Select Cycle...</option>
+                        {AWARD_CYCLES.map((cycle) => (
+                          <option key={cycle} value={cycle}>
+                            {cycle}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
                   <div className="mb-1.5 flex items-center justify-between">
                     <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
                       Citation / message <span className="text-rose-500">*</span>
@@ -456,7 +552,7 @@ export default function NominationWizard({
                     <span className="text-lg leading-none">{selectedCategory?.icon || "🏆"}</span>
                     <div className="min-w-0">
                       <p className="truncate text-sm font-semibold text-blue-700 dark:text-sky-300">
-                        {selectedCategory?.name ?? "Select an award"}
+                        {categoryId === -1 ? (customCategory || "Custom Spot Award") : (selectedCategory?.name ?? "Select an award")}
                       </p>
                       {selectedCategory && (
                         <p className="text-xs font-medium text-blue-500 dark:text-sky-400">
@@ -465,6 +561,16 @@ export default function NominationWizard({
                       )}
                     </div>
                   </div>
+
+                  {isPerformance && awardCycle && (
+                    <div className="mt-3 flex items-center gap-2 rounded-lg bg-indigo-50 px-3 py-2 dark:bg-indigo-950/30">
+                      <Calendar className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+                      <p className="text-sm font-semibold text-indigo-700 dark:text-indigo-300">
+                        Cycle: {awardCycle}
+                      </p>
+                    </div>
+                  )}
+
                   <p className="mt-3 line-clamp-6 text-sm leading-relaxed text-slate-600 dark:text-slate-300">
                     {message || "Your message preview will appear here."}
                   </p>

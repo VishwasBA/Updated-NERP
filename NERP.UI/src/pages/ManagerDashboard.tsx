@@ -5,9 +5,10 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useManagerDashboard } from "@/hooks/useApiData";
 import ManagerStatsCards from "@/components/manager/ManagerStatsCards";
 import EmployeesWithoutRecognitionTable from "@/components/manager/EmployeesWithoutRecognitionTable";
-import TopBottomPerformers from "@/components/manager/TopBottomPerformers";
+import TeamPerformanceRankings from "@/components/manager/TeamPerformanceRankings";
 import RecentTeamAppreciations from "@/components/manager/RecentTeamAppreciations";
 import ManageTeamPanel from "@/components/manager/ManageTeamPanel";
+import ApprovalsCenter from "@/components/manager/ApprovalsCenter";
 
 function toCsvValue(value: string | number | null | undefined): string {
   const str = value === null || value === undefined ? "" : String(value);
@@ -60,25 +61,26 @@ export default function ManagerDashboard() {
       <ManagerStatsCards stats={data?.stats} isLoading={isLoading} />
 
       {!isLoading && members.length === 0 ? (
-        <div className="grid gap-6 lg:grid-cols-2">
-          <div className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-slate-200 py-16 text-center dark:border-slate-800">
-            <Users className="h-8 w-8 text-slate-300" />
-            <p className="text-sm font-medium text-slate-600 dark:text-slate-300">No one reports to you yet.</p>
-            <p className="text-xs text-muted-foreground">Use "Add Employee" to start building your team.</p>
+        <div className="flex flex-col gap-6">
+          <div className="grid gap-6 lg:grid-cols-2">
+            <div className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-slate-200 py-16 text-center dark:border-slate-800">
+              <Users className="h-8 w-8 text-slate-300" />
+              <p className="text-sm font-medium text-slate-600 dark:text-slate-300">No one reports to you yet.</p>
+              <p className="text-xs text-muted-foreground">Use "Add Team Member" to start building your team.</p>
+            </div>
+            <ManageTeamPanel members={members} />
           </div>
-          <ManageTeamPanel members={members} />
+          <ApprovalsCenter />
         </div>
       ) : (
         <>
+          <TeamPerformanceRankings members={members} isLoading={isLoading} />
+
           <RecentTeamAppreciations items={data?.recentAppreciations ?? []} isLoading={isLoading} />
 
-          <EmployeesWithoutRecognitionTable items={employeesWithoutRecognition} isLoading={isLoading} />
+          <ApprovalsCenter />
 
-          <TopBottomPerformers
-            topPerformers={data?.topPerformers ?? []}
-            bottomPerformers={data?.bottomPerformers ?? []}
-            isLoading={isLoading}
-          />
+          <EmployeesWithoutRecognitionTable items={employeesWithoutRecognition} isLoading={isLoading} />
 
           <ManageTeamPanel members={members} />
         </>
@@ -86,3 +88,4 @@ export default function ManagerDashboard() {
     </div>
   );
 }
+

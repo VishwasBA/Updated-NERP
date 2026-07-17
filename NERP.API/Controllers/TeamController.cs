@@ -4,6 +4,8 @@ using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 using EmployeeRecognition.API.Data;
 using EmployeeRecognition.API.DTOs;
+using EmployeeRecognition.API.Models;
+
 
 namespace EmployeeRecognition.API.Controllers;
 
@@ -24,23 +26,47 @@ public class TeamController : ControllerBase
     public async Task<IActionResult> GetManagerDashboard()
     {
         var managerId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+        var managerRole = User.FindFirstValue("userRole")!;
 
-        var reports = await _db.Employees
-            .AsNoTracking()
-            .Where(e => e.ManagerId == managerId)
-            .Include(e => e.RecognitionsGiven)
-            .Include(e => e.RecognitionsReceived)
-            .ToListAsync();
+        List<Employee> reports = new();
+        List<Employee> subReports = new();
 
-        var reportIds = reports.Select(e => e.Id).ToHashSet();
+        if (managerRole == "admin")
+        {
+            reports = await _db.Employees
+                .AsNoTracking()
+                .Include(e => e.RecognitionsGiven)
+                .Include(e => e.RecognitionsReceived)
+                .ToListAsync();
+        }
+        else
+        {
+            reports = await _db.Employees
+                .AsNoTracking()
+                .Where(e => e.ManagerId == managerId)
+                .Include(e => e.RecognitionsGiven)
+                .Include(e => e.RecognitionsReceived)
+                .ToListAsync();
+
+            if (managerRole == "bu_manager")
+            {
+                var cuIds = reports.Select(e => e.Id).ToList();
+                subReports = await _db.Employees
+                    .AsNoTracking()
+                    .Where(e => e.ManagerId.HasValue && cuIds.Contains(e.ManagerId.Value))
+                    .Include(e => e.RecognitionsGiven)
+                    .Include(e => e.RecognitionsReceived)
+                    .ToListAsync();
+            }
+        }
+
+        var reportIds = reports.Select(e => e.Id).Concat(subReports.Select(s => s.Id)).ToHashSet();
 
         if (reportIds.Count == 0)
         {
             return Ok(new ManagerDashboardDto());
         }
 
-        // All recognitions where a direct report is the recipient — this is
-        // what "the team was appreciated" means for stats/trend/recent.
         var receivedRecognitions = await _db.Recognitions
             .AsNoTracking()
             .Include(r => r.FromEmployee)
@@ -49,15 +75,30 @@ public class TeamController : ControllerBase
             .Where(r => reportIds.Contains(r.ToEmployeeId))
             .ToListAsync();
 
-        var approvedReceived = receivedRecognitions.Where(r => r.Status == "approved").ToList();
+        var approvedReceived = receivedRecognitions.Where(r => r.Status == "approved" || r.Status == "Approved" || r.Status == "Approved Winner").ToList();
+
+        var allEmployees = reports.Concat(subReports).ToList();
+
+        var employeesWithoutRecognition = allEmployees
+            .Where(e => e.TotalPoints == 0 && (e.RecognitionsReceived == null || !e.RecognitionsReceived.Any(r => r.Status == "approved" || r.Status == "Approved" || r.Status == "Approved Winner")))
+            .Select(e => new EmployeeWithoutRecognitionDto
+            {
+                Id = e.Id,
+                Name = e.Name,
+                Department = e.Department,
+                Avatar = e.Avatar,
+                DaysSinceLastAppreciation = null,
+                CurrentPoints = 0
+            })
+            .ToList();
 
         var stats = new ManagerDashboardStatsDto
         {
-            TotalTeamMembers = reports.Count,
+            TotalTeamMembers = reports.Count + subReports.Count,
             AppreciatedEmployees = approvedReceived.Select(r => r.ToEmployeeId).Distinct().Count(),
-            EmployeesWithoutRecognition = reports.Count(e => !approvedReceived.Any(r => r.ToEmployeeId == e.Id)),
-            PendingNominations = receivedRecognitions.Count(r => r.Type == "nomination" && r.Status == "pending"),
-            TotalTeamPoints = reports.Sum(e => e.TotalPoints)
+            EmployeesWithoutRecognition = employeesWithoutRecognition.Count,
+            PendingNominations = receivedRecognitions.Count(r => r.Type == "nomination" && (r.Status == "Pending BU Approval" || r.Status == "Pending BU Review" || r.Status == "BU Shortlisted")),
+            TotalTeamPoints = reports.Sum(e => e.TotalPoints) + subReports.Sum(e => e.TotalPoints)
         };
 
         var recentAppreciations = receivedRecognitions
@@ -75,46 +116,21 @@ public class TeamController : ControllerBase
                 CreatedAt = r.CreatedAt,
                 FromEmployee = new EmployeeSimpleDto { Id = r.FromEmployee.Id, Name = r.FromEmployee.Name, Department = r.FromEmployee.Department, Location = r.FromEmployee.Location, Avatar = r.FromEmployee.Avatar },
                 ToEmployee = new EmployeeSimpleDto { Id = r.ToEmployee.Id, Name = r.ToEmployee.Name, Department = r.ToEmployee.Department, Location = r.ToEmployee.Location, Avatar = r.ToEmployee.Avatar },
-                Category = r.Category == null ? null : new CategorySimpleDto { Id = r.Category.Id, Name = r.Category.Name, Icon = r.Category.Icon }
+                Category = r.Category == null ? null : new CategorySimpleDto { Id = r.Category.Id, Name = r.Category.Name, Icon = r.Category.Icon, AwardType = r.Category.AwardType }
             })
             .ToList();
 
-        var lastAppreciationByEmployee = approvedReceived
-            .GroupBy(r => r.ToEmployeeId)
-            .ToDictionary(g => g.Key, g => g.Max(r => r.CreatedAt));
 
-        var employeesWithoutRecognition = reports
-            .Select(e =>
-            {
-                lastAppreciationByEmployee.TryGetValue(e.Id, out var lastDate);
-                var hasAny = lastAppreciationByEmployee.ContainsKey(e.Id);
-                return new EmployeeWithoutRecognitionDto
-                {
-                    Id = e.Id,
-                    Name = e.Name,
-                    Department = e.Department,
-                    Avatar = e.Avatar,
-                    DaysSinceLastAppreciation = hasAny ? (int)(DateTime.UtcNow - lastDate).TotalDays : null,
-                    CurrentPoints = e.TotalPoints
-                };
-            })
-            // Never-appreciated first, then longest-waiting next.
-            .OrderByDescending(e => e.DaysSinceLastAppreciation ?? int.MaxValue)
-            .ToList();
-
-        var members = reports
-            .Select(e => new TeamMemberDto
-            {
-                Id = e.Id,
-                Name = e.Name,
-                Role = e.Role,
-                Department = e.Department,
-                Avatar = e.Avatar,
-                AppreciationsGiven = e.RecognitionsGiven.Count(r => r.Status == "approved"),
-                AppreciationsReceived = e.RecognitionsReceived.Count(r => r.Status == "approved"),
-                Points = e.TotalPoints
-            })
-            .ToList();
+        List<TeamMemberDto> members;
+        if (managerRole == "admin")
+        {
+            var roots = reports.Where(e => e.ManagerId == managerId).ToList();
+            members = roots.Select(e => MapToTeamMemberDto(e, reports)).ToList();
+        }
+        else
+        {
+            members = reports.Select(e => MapToTeamMemberDto(e, allEmployees)).ToList();
+        }
 
         var topPerformers = members.OrderByDescending(m => m.Points).Take(5).ToList();
         var bottomPerformers = members.OrderBy(m => m.Points).Take(5).ToList();
@@ -129,6 +145,33 @@ public class TeamController : ControllerBase
             Members = members.OrderByDescending(m => m.Points).ToList()
         });
     }
+
+    private static TeamMemberDto MapToTeamMemberDto(Employee e, List<Employee> allList)
+    {
+        var givenCount = e.RecognitionsGiven != null ? e.RecognitionsGiven.Count(r => r.Status == "approved" || r.Status == "Approved" || r.Status == "Approved Winner") : 0;
+        var receivedCount = e.RecognitionsReceived != null ? e.RecognitionsReceived.Count(r => r.Status == "approved" || r.Status == "Approved" || r.Status == "Approved Winner") : 0;
+        var awardsCount = e.RecognitionsReceived != null ? e.RecognitionsReceived.Count(r => r.Type == "nomination" && (r.Status == "Approved" || r.Status == "Approved Winner")) : 0;
+
+        return new TeamMemberDto
+        {
+            Id = e.Id,
+            Name = e.Name,
+            Role = e.Role,
+            Department = e.Department,
+            Avatar = e.Avatar,
+            AppreciationsGiven = givenCount,
+            AppreciationsReceived = receivedCount,
+            Points = e.TotalPoints,
+            RecognitionCount = receivedCount,
+            AwardsCount = awardsCount,
+            ManagerId = e.ManagerId,
+            Reports = allList
+                .Where(child => child.ManagerId == e.Id)
+                .Select(child => MapToTeamMemberDto(child, allList))
+                .ToList()
+        };
+    }
+
 
     // Kept for backward compatibility with any existing "my team" widgets;
     // now scoped by direct-report hierarchy instead of department.
@@ -154,7 +197,9 @@ public class TeamController : ControllerBase
             Avatar = e.Avatar,
             AppreciationsGiven = e.RecognitionsGiven.Count,
             AppreciationsReceived = e.RecognitionsReceived.Count,
-            Points = e.TotalPoints
+            Points = e.TotalPoints,
+            RecognitionCount = e.RecognitionsReceived.Count(r => r.Status == "approved" || r.Status == "Approved" || r.Status == "Approved Winner"),
+            AwardsCount = e.RecognitionsReceived.Count(r => r.Type == "nomination" && (r.Status == "Approved" || r.Status == "Approved Winner"))
         })
         .OrderByDescending(m => m.Points)
         .ToList();
@@ -188,9 +233,21 @@ public class TeamController : ControllerBase
     [HttpGet("available-employees")]
     public async Task<IActionResult> GetAvailableEmployees([FromQuery] string? search = null)
     {
-        var query = _db.Employees
-            .AsNoTracking()
-            .Where(e => e.ManagerId == null && e.UserRole == "employee");
+        var managerRole = User.FindFirstValue("userRole")!;
+        var query = _db.Employees.AsNoTracking().Where(e => e.ManagerId == null);
+
+        if (managerRole == "cu_manager")
+        {
+            query = query.Where(e => e.UserRole == "employee");
+        }
+        else if (managerRole == "bu_manager")
+        {
+            query = query.Where(e => e.UserRole == "cu_manager");
+        }
+        else
+        {
+            query = query.Where(e => e.UserRole == "employee");
+        }
 
         if (!string.IsNullOrWhiteSpace(search))
         {
@@ -207,7 +264,9 @@ public class TeamController : ControllerBase
                 Role = e.Role,
                 Department = e.Department,
                 Avatar = e.Avatar,
-                Points = e.TotalPoints
+                Points = e.TotalPoints,
+                RecognitionCount = 0,
+                AwardsCount = 0
             })
             .Take(50)
             .ToListAsync();
@@ -219,6 +278,7 @@ public class TeamController : ControllerBase
     public async Task<IActionResult> AddTeamMember(int employeeId)
     {
         var managerId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+        var managerRole = User.FindFirstValue("userRole")!;
         var employee = await _db.Employees.FindAsync(employeeId);
         if (employee == null) return NotFound(new { message = "Employee not found." });
 
@@ -228,13 +288,24 @@ public class TeamController : ControllerBase
         if (employee.ManagerId != null)
             return BadRequest(new { message = "This employee already reports to a manager. Ask an admin to reassign them." });
 
-        if (employee.UserRole != "employee")
-            return BadRequest(new { message = "Only employees (not managers or admins) can be added as direct reports here." });
+        if (managerRole == "cu_manager" && employee.UserRole != "employee")
+        {
+            return BadRequest(new { message = "Only employees can report directly to a CU Manager." });
+        }
+        if (managerRole == "bu_manager" && employee.UserRole != "cu_manager")
+        {
+            return BadRequest(new { message = "Only CU Managers can report directly to a BU Manager." });
+        }
+        if (managerRole != "cu_manager" && managerRole != "bu_manager" && employee.UserRole != "employee")
+        {
+            return BadRequest(new { message = "Only employees can report to you." });
+        }
 
         employee.ManagerId = managerId;
         await _db.SaveChangesAsync();
         return Ok(new { success = true });
     }
+
 
     [HttpDelete("members/{employeeId}")]
     public async Task<IActionResult> RemoveTeamMember(int employeeId)

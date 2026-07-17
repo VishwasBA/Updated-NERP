@@ -13,7 +13,9 @@ public class RegisterRequest
     public string Name { get; set; } = string.Empty;
     public string Department { get; set; } = string.Empty;
     public string Role { get; set; } = string.Empty;
+    public string? UserRole { get; set; }
 }
+
 
 public class AuthResponse
 {

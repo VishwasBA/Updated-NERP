@@ -104,4 +104,21 @@ app.UseCors("AllowFrontend");
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
+
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    var managers = db.Employees.Where(e => e.UserRole == "manager").ToList();
+    if (managers.Any())
+    {
+        foreach (var m in managers)
+        {
+            if (m.Name.Contains("BU")) m.UserRole = "bu_manager";
+            else if (m.Name.Contains("CU")) m.UserRole = "cu_manager";
+        }
+        db.SaveChanges();
+    }
+}
+
 app.Run();
+

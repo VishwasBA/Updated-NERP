@@ -10,7 +10,15 @@ public class TeamMemberDto
     public int AppreciationsGiven { get; set; }
     public int AppreciationsReceived { get; set; }
     public int Points { get; set; }
+    public int RecognitionCount { get; set; }
+    public int AwardsCount { get; set; }
+    public int? ManagerId { get; set; }
+    public List<TeamMemberDto> Reports { get; set; } = new();
 }
+
+
+
+
 
 public class TeamSummaryDto
 {

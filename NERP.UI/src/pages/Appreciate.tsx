@@ -1,9 +1,9 @@
 import { useState } from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Heart, CheckCircle, ChevronsUpDown, X, Star, ArrowRight } from "lucide-react";
+import { Heart, CheckCircle, ChevronsUpDown, X, Star, ArrowRight, Award } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   useEmployees,
@@ -131,6 +131,7 @@ function timeAgo(dateStr: string): string {
 export default function SendAppreciation() {
   const { user } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
   const { data: employees = [] } = useEmployees();
   const { data: categories = [] } = useAwardCategories();
   const { data: recentRecognitions = [] } = useRecentRecognitions(4);
@@ -180,6 +181,60 @@ export default function SendAppreciation() {
           <p className="text-muted-foreground mt-1">Recognize a colleague's great work and make their day!</p>
         </div>
       </div>
+
+      {/* Quick Navigation Cards */}
+      <div className="grid gap-4 sm:grid-cols-2">
+        {/* Card 1: Send Appreciation */}
+        <Card className="rounded-2xl border-2 border-pink-600/30 bg-pink-50/10 dark:border-pink-500/20 dark:bg-pink-950/10 p-5 shadow-sm flex flex-col justify-between h-full group">
+          <CardContent className="p-0 flex flex-col h-full justify-between">
+            <div className="flex items-start gap-4">
+              <div className="rounded-2xl bg-pink-50 dark:bg-pink-950/30 p-3 text-pink-600 dark:text-pink-400 group-hover:scale-110 transition duration-200 shrink-0">
+                <Heart className="h-6 w-6 fill-current" />
+              </div>
+              <div>
+                <h3 className="font-bold text-slate-900 dark:text-white text-base">Send Appreciation</h3>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Recognize employees instantly through Kudos/Appreciation.
+                </p>
+              </div>
+            </div>
+            <div className="mt-4 pt-2">
+              <Button
+                disabled
+                className="w-full sm:w-auto bg-pink-600 text-white font-semibold gap-1.5 rounded-xl opacity-90 cursor-default"
+              >
+                Current Flow: Send Appreciation
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Card 2: Create Nomination */}
+        <Card className="rounded-2xl border border-slate-200/80 bg-white dark:border-slate-800 dark:bg-slate-950 p-5 shadow-sm hover:shadow-md transition duration-200 flex flex-col justify-between h-full group hover:border-indigo-200 dark:hover:border-indigo-900/50">
+          <CardContent className="p-0 flex flex-col h-full justify-between">
+            <div className="flex items-start gap-4">
+              <div className="rounded-2xl bg-indigo-50 dark:bg-indigo-950/30 p-3 text-indigo-600 dark:text-indigo-400 group-hover:scale-110 transition duration-200 shrink-0">
+                <Award className="h-6 w-6" />
+              </div>
+              <div>
+                <h3 className="font-bold text-slate-900 dark:text-white text-base">Create Nomination</h3>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Nominate employees for Spot Awards and Performance Awards.
+                </p>
+              </div>
+            </div>
+            <div className="mt-4 pt-2">
+              <Button
+                onClick={() => navigate("/nominate", { state: { employeeId: prefillEmployeeId } })}
+                className="w-full sm:w-auto bg-indigo-600 text-white hover:bg-indigo-700 font-semibold gap-1.5 rounded-xl transition"
+              >
+                Create Nomination <ArrowRight className="h-4 w-4" />
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
 
       <NominationWizard
         heading="Send Appreciation"

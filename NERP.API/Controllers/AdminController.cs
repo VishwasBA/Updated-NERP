@@ -52,7 +52,7 @@ public class AdminController : ControllerBase
     public async Task<IActionResult> GetManagerOptions()
     {
         var managers = await _db.Employees
-            .Where(e => e.UserRole == "manager" || e.UserRole == "admin")
+            .Where(e => e.UserRole == "cu_manager" || e.UserRole == "bu_manager" || e.UserRole == "admin")
             .OrderBy(e => e.Name)
             .Select(e => new ManagerOptionDto { Id = e.Id, Name = e.Name, Department = e.Department })
             .ToListAsync();
@@ -73,8 +73,9 @@ public class AdminController : ControllerBase
 
             var manager = await _db.Employees.FindAsync(req.ManagerId.Value);
             if (manager == null) return BadRequest(new { message = "Selected manager was not found." });
-            if (manager.UserRole != "manager" && manager.UserRole != "admin")
+            if (manager.UserRole != "cu_manager" && manager.UserRole != "bu_manager" && manager.UserRole != "admin")
                 return BadRequest(new { message = "Selected employee is not a manager or admin." });
+
 
             // Prevent creating a reporting cycle (e.g. assigning someone's
             // own descendant as their manager).

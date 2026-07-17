@@ -1,5 +1,6 @@
 const API_BASE = (import.meta.env.VITE_API_URL || "https://localhost:59587/api").replace(/\/$/, "");
 
+
 import { getAuthToken, clearAuthToken } from "@/lib/auth";
 
 /**
@@ -110,7 +111,9 @@ export interface RegisterRequest {
   name: string;
   department: string;
   role: string;
+  userRole?: string;
 }
+
 
 export interface AuthResponse {
   token: string;
@@ -123,7 +126,8 @@ export interface ApiCurrentUser {
   email: string;
   department: string;
   role: string;
-  userRole: "employee" | "manager" | "admin";
+  userRole: "employee" | "manager" | "admin" | "cu_manager" | "bu_manager";
+
   totalPoints: number;
   avatar: string;
   location?: string;
@@ -192,6 +196,15 @@ export const categoriesApi = {
 };
 
 // ---- Recognitions ----
+export interface ApiNominationAudit {
+  id: number;
+  action: string;
+  performedBy: string;
+  role: string;
+  comments: string;
+  createdDate: string;
+}
+
 export interface ApiRecognition {
   id: number;
   fromEmployeeId: number;
@@ -211,16 +224,25 @@ export interface ApiRecognition {
     avatar?: string;
   };
   message: string;
-  categoryId?: number;
+  categoryId?: number | null;
   category?: {
     id: number;
     name: string;
     icon: string;
+    awardType?: string;
   };
+
   points: number;
   createdAt: string;
   type: "appreciation" | "nomination";
-  status: "approved" | "pending" | "rejected";
+  status: string;
+  customCategory?: string;
+  awardCycle?: string;
+  buManagerId?: number;
+  buDecisionDate?: string;
+  hrAdminId?: number;
+  hrDecisionDate?: string;
+  audits?: ApiNominationAudit[];
   likeCount?: number;
   commentCount?: number;
   likedByMe?: boolean;
@@ -252,9 +274,11 @@ export interface ApiDashboardSummary {
 export interface CreateRecognitionRequest {
   toEmployeeId: number;
   message: string;
-  categoryId?: number;
+  categoryId?: number | null;
   type: string;
   shareToTeams?: boolean;
+  customCategory?: string;
+  awardCycle?: string;
 }
 
 export const recognitionsApi = {
@@ -273,6 +297,26 @@ export const recognitionsApi = {
   // Creates a new recognition entry for another employee.
   create: (data: CreateRecognitionRequest) =>
     apiFetch<ApiRecognition>("/recognitions", { method: "POST", body: JSON.stringify(data) }),
+
+  // Get pending nominations for approval (manager/admin)
+  getPendingApprovals: () =>
+    apiFetch<ApiRecognition[]>("/recognitions/pending-approvals"),
+
+  // BU Manager decision
+  buDecision: (id: number, decision: "approve" | "reject" | "shortlist", comments?: string) =>
+    apiFetch<void>(`/recognitions/${id}/bu-decision`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ decision, comments }),
+    }),
+
+  // HR/Admin decision
+  hrDecision: (id: number, decision: "select" | "reject", comments?: string) =>
+    apiFetch<void>(`/recognitions/${id}/hr-decision`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ decision, comments }),
+    }),
 
   // Approves a pending recognition by its identifier.
   approve: (id: number) => apiFetch<void>(`/recognitions/${id}/approve`, { method: "PUT" }),
@@ -403,7 +447,13 @@ export interface ApiTeamMember {
   appreciationsGiven: number;
   appreciationsReceived: number;
   points: number;
+  recognitionCount: number;
+  awardsCount: number;
+  managerId?: number | null;
+  reports?: ApiTeamMember[];
 }
+
+
 
 export interface ApiEmployeeWithoutRecognition {
   id: number;

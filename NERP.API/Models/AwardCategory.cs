@@ -8,4 +8,5 @@ public class AwardCategory
     public int Points { get; set; }
     public string Icon { get; set; } = string.Empty;
     public bool ManagerOnly { get; set; }
+    public string AwardType { get; set; } = "spot"; // spot, performance, appreciation
 }

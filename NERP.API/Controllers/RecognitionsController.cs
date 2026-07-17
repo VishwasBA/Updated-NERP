@@ -55,7 +55,14 @@ public class RecognitionsController : ControllerBase
 
         if (!string.IsNullOrEmpty(status))
         {
-            query = query.Where(r => r.Status == status);
+            if (status.Equals("approved", StringComparison.OrdinalIgnoreCase))
+            {
+                query = query.Where(r => r.Status == "Approved" || r.Status == "Approved Winner" || r.Status == "approved");
+            }
+            else
+            {
+                query = query.Where(r => r.Status == status);
+            }
         }
         if (!string.IsNullOrEmpty(type))
         {
@@ -79,12 +86,30 @@ public class RecognitionsController : ControllerBase
                 CreatedAt = r.CreatedAt,
                 FromEmployee = new EmployeeSimpleDto { Id = r.FromEmployee.Id, Name = r.FromEmployee.Name, Department = r.FromEmployee.Department, Location = r.FromEmployee.Location, Avatar = r.FromEmployee.Avatar },
                 ToEmployee = new EmployeeSimpleDto { Id = r.ToEmployee.Id, Name = r.ToEmployee.Name, Department = r.ToEmployee.Department, Location = r.ToEmployee.Location, Avatar = r.ToEmployee.Avatar },
-                Category = r.Category == null ? null : new CategorySimpleDto { Id = r.Category.Id, Name = r.Category.Name, Icon = r.Category.Icon },
+                Category = r.Category == null ? null : new CategorySimpleDto { Id = r.Category.Id, Name = r.Category.Name, Icon = r.Category.Icon, AwardType = r.Category.AwardType },
+                CustomCategory = r.CustomCategory,
+                AwardCycle = r.AwardCycle,
+                BUManagerId = r.BUManagerId,
+                BUManagerName = r.BUManager != null ? r.BUManager.Name : null,
+                BUDecisionDate = r.BUDecisionDate,
+                HRAdminId = r.HRAdminId,
+                HRAdminName = r.HRAdmin != null ? r.HRAdmin.Name : null,
+                HRDecisionDate = r.HRDecisionDate,
+                Audits = r.Audits.Select(a => new NominationAuditDto
+                {
+                    Id = a.Id,
+                    Action = a.Action,
+                    PerformedBy = a.PerformedBy,
+                    Role = a.Role,
+                    Comments = a.Comments,
+                    CreatedDate = a.CreatedDate
+                }).ToList(),
                 LikeCount = r.Likes.Count,
                 CommentCount = r.Comments.Count,
                 LikedByMe = r.Likes.Any(l => l.EmployeeId == userId)
             })
             .ToListAsync();
+
         querySw.Stop();
         _logger.LogInformation("GetRecognitions DB query executed in {ElapsedMs}ms", querySw.ElapsedMilliseconds);
 
@@ -99,7 +124,7 @@ public class RecognitionsController : ControllerBase
         _logger.LogInformation("GetRecentApprovedNominations API started");
 
         var data = await _db.Recognitions.AsNoTracking()
-            .Where(r => r.Type == "nomination" && r.Status == "approved")
+            .Where(r => r.Type == "nomination" && (r.Status == "Approved" || r.Status == "Approved Winner" || r.Status == "approved"))
             .OrderByDescending(r => r.CreatedAt)
             .Take(4)
             .Select(r => new RecognitionResponseDto
@@ -114,9 +139,18 @@ public class RecognitionsController : ControllerBase
                 CreatedAt = r.CreatedAt,
                 FromEmployee = new EmployeeSimpleDto { Id = r.FromEmployee.Id, Name = r.FromEmployee.Name, Department = r.FromEmployee.Department, Location = r.FromEmployee.Location, Avatar = r.FromEmployee.Avatar },
                 ToEmployee = new EmployeeSimpleDto { Id = r.ToEmployee.Id, Name = r.ToEmployee.Name, Department = r.ToEmployee.Department, Location = r.ToEmployee.Location, Avatar = r.ToEmployee.Avatar },
-                Category = r.Category == null ? null : new CategorySimpleDto { Id = r.Category.Id, Name = r.Category.Name, Icon = r.Category.Icon }
+                Category = r.Category == null ? null : new CategorySimpleDto { Id = r.Category.Id, Name = r.Category.Name, Icon = r.Category.Icon, AwardType = r.Category.AwardType },
+                CustomCategory = r.CustomCategory,
+                AwardCycle = r.AwardCycle,
+                BUManagerId = r.BUManagerId,
+                BUManagerName = r.BUManager != null ? r.BUManager.Name : null,
+                BUDecisionDate = r.BUDecisionDate,
+                HRAdminId = r.HRAdminId,
+                HRAdminName = r.HRAdmin != null ? r.HRAdmin.Name : null,
+                HRDecisionDate = r.HRDecisionDate
             })
             .ToListAsync();
+
 
         return Ok(data);
     }
@@ -139,34 +173,27 @@ public class RecognitionsController : ControllerBase
 
         if (direction == "sent")
         {
-            if (userRole == "admin")
-            {
-                query = query.Where(r => r.FromEmployeeId == userId && (r.Type == "appreciation" || (r.Type == "nomination" && r.Status == "approved")));
-            }
-            else
-            {
-                query = query.Where(r => r.FromEmployeeId == userId && r.Type == "appreciation");
-            }
+            query = query.Where(r => r.FromEmployeeId == userId);
         }
         else if (direction == "received")
         {
-            query = query.Where(r => r.ToEmployeeId == userId && (r.Type == "appreciation" || (r.Type == "nomination" && r.Status == "approved")));
+            query = query.Where(r => r.ToEmployeeId == userId && (r.Type == "appreciation" || (r.Type == "nomination" && (r.Status == "Approved" || r.Status == "Approved Winner" || r.Status == "approved"))));
         }
         else
         {
-            if (userRole == "admin")
-            {
-                query = query.Where(r => r.Type == "nomination" && r.Status == "pending");
-            }
-            else
-            {
-                query = query.Where(r => (r.FromEmployeeId == userId && r.Type == "appreciation") || (r.ToEmployeeId == userId && (r.Type == "appreciation" || (r.Type == "nomination" && r.Status == "approved"))));
-            }
+            query = query.Where(r => (r.FromEmployeeId == userId && r.Type == "appreciation") || (r.ToEmployeeId == userId && (r.Type == "appreciation" || (r.Type == "nomination" && (r.Status == "Approved" || r.Status == "Approved Winner" || r.Status == "approved")))));
         }
 
         if (!string.IsNullOrEmpty(status))
         {
-            query = query.Where(r => r.Status == status);
+            if (status.Equals("approved", StringComparison.OrdinalIgnoreCase))
+            {
+                query = query.Where(r => r.Status == "Approved" || r.Status == "Approved Winner" || r.Status == "approved");
+            }
+            else
+            {
+                query = query.Where(r => r.Status == status);
+            }
         }
         if (!string.IsNullOrEmpty(type))
         {
@@ -190,9 +217,27 @@ public class RecognitionsController : ControllerBase
                 CreatedAt = r.CreatedAt,
                 FromEmployee = new EmployeeSimpleDto { Id = r.FromEmployee.Id, Name = r.FromEmployee.Name, Department = r.FromEmployee.Department, Location = r.FromEmployee.Location, Avatar = r.FromEmployee.Avatar },
                 ToEmployee = new EmployeeSimpleDto { Id = r.ToEmployee.Id, Name = r.ToEmployee.Name, Department = r.ToEmployee.Department, Location = r.ToEmployee.Location, Avatar = r.ToEmployee.Avatar },
-                Category = r.Category == null ? null : new CategorySimpleDto { Id = r.Category.Id, Name = r.Category.Name, Icon = r.Category.Icon }
+                Category = r.Category == null ? null : new CategorySimpleDto { Id = r.Category.Id, Name = r.Category.Name, Icon = r.Category.Icon, AwardType = r.Category.AwardType },
+                CustomCategory = r.CustomCategory,
+                AwardCycle = r.AwardCycle,
+                BUManagerId = r.BUManagerId,
+                BUManagerName = r.BUManager != null ? r.BUManager.Name : null,
+                BUDecisionDate = r.BUDecisionDate,
+                HRAdminId = r.HRAdminId,
+                HRAdminName = r.HRAdmin != null ? r.HRAdmin.Name : null,
+                HRDecisionDate = r.HRDecisionDate,
+                Audits = r.Audits.Select(a => new NominationAuditDto
+                {
+                    Id = a.Id,
+                    Action = a.Action,
+                    PerformedBy = a.PerformedBy,
+                    Role = a.Role,
+                    Comments = a.Comments,
+                    CreatedDate = a.CreatedDate
+                }).ToList()
             })
             .ToListAsync();
+
         querySw.Stop();
         _logger.LogInformation("GetMy DB query executed in {ElapsedMs}ms", querySw.ElapsedMilliseconds);
 
@@ -216,48 +261,107 @@ public class RecognitionsController : ControllerBase
         var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
         var userRole = User.FindFirstValue("userRole")!;
 
-        // Nominations (category-based, points-bearing recognitions) are a
-        // manager/admin action — the wizard already hides this from
-        // employees, but that's UI only, so enforce it here too rather
-        // than trusting the client's declared type/category.
         if (req.Type == "nomination" && userRole == "employee")
         {
             _logger.LogWarning("Blocked employee {UserId} from creating a nomination directly via the API", userId);
             return Forbid();
         }
 
-        int points = 0; // default appreciation points
+        int points = 0;
         string status = "approved";
+        string? customCategory = null;
+        string? awardCycle = null;
+        AwardCategory? category = null;
 
-        if (req.CategoryId.HasValue)
+        if (req.Type == "nomination")
         {
-            var category = await _db.AwardCategories.FindAsync(req.CategoryId.Value);
-            if (category == null) return BadRequest(new { message = "Invalid category" });
-
-            if (category.ManagerOnly && userRole == "employee")
-                return Forbid();
-            
-            // ✅ Only assign points for nomination
-            if (req.Type == "nomination")
+            if (!string.IsNullOrWhiteSpace(req.CustomCategory))
             {
-                points = category.Points;
+                customCategory = req.CustomCategory.Trim();
+                points = 500;
+                status = "Pending BU Approval";
             }
             else
             {
-                points = 0; // appreciation → no points
+                if (!req.CategoryId.HasValue)
+                {
+                    return BadRequest(new { message = "Category is required for nomination." });
+                }
+
+                category = await _db.AwardCategories.FindAsync(req.CategoryId.Value);
+                if (category == null) return BadRequest(new { message = "Invalid category" });
+
+                if (category.ManagerOnly && userRole == "employee")
+                    return Forbid();
+
+                if (category.AwardType == "spot")
+                {
+                    points = 500;
+                    status = "Pending BU Approval";
+                }
+                else if (category.AwardType == "performance")
+                {
+                    if (string.IsNullOrWhiteSpace(req.AwardCycle))
+                    {
+                        return BadRequest(new { message = "Award cycle is required for performance nominations." });
+                    }
+
+                    awardCycle = req.AwardCycle.Trim();
+                    points = category.Points;
+                    status = "Pending BU Review";
+
+                    if (category.Id == 15 || category.Name.Contains("Rising Star"))
+                    {
+                        if (toEmployee.JoiningDate.HasValue)
+                        {
+                            var tenureDays = (DateTime.UtcNow - toEmployee.JoiningDate.Value.ToDateTime(TimeOnly.MinValue)).TotalDays;
+                            var tenureMonths = tenureDays / 30.4375;
+                            if (tenureMonths > 6)
+                            {
+                                return BadRequest(new { message = "Rising Star (BA) nominees must have completed a maximum of 6 months tenure." });
+                            }
+                        }
+                    }
+
+                    var exists = await _db.Recognitions.AnyAsync(r =>
+                        r.FromEmployeeId == userId &&
+                        r.CategoryId == category.Id &&
+                        r.AwardCycle == awardCycle &&
+                        r.Status != "Rejected");
+
+                    if (exists)
+                    {
+                        return BadRequest(new { message = $"You have already nominated an employee for the category '{category.Name}' in cycle '{awardCycle}'." });
+                    }
+                }
+                else
+                {
+                    points = category.Points;
+                    status = "pending";
+                }
             }
-
         }
-
-        if (req.Type == "nomination")
-            status = "pending";
+        else
+        {
+            if (req.CategoryId.HasValue)
+            {
+                category = await _db.AwardCategories.FindAsync(req.CategoryId.Value);
+                if (category == null) return BadRequest(new { message = "Invalid category" });
+                if (category.ManagerOnly && userRole == "employee")
+                    return Forbid();
+            }
+            points = 0;
+            status = "approved";
+        }
 
         var recognition = new Recognition
         {
             FromEmployeeId = userId,
             ToEmployeeId = req.ToEmployeeId,
             Message = req.Message,
-            CategoryId = req.CategoryId,
+            CategoryId = customCategory != null ? null : req.CategoryId,
+            CustomCategory = customCategory,
+            AwardCycle = awardCycle,
             Points = points,
             Type = req.Type,
             Status = status,
@@ -265,26 +369,32 @@ public class RecognitionsController : ControllerBase
         };
 
         _db.Recognitions.Add(recognition);
-
         await _db.SaveChangesAsync();
 
-        // BUG FIX: the Notifications table + GET/markRead endpoints already
-        // existed and worked correctly, but nothing in the whole codebase
-        // ever inserted a row into that table — so a recipient's
-        // notifications list was always empty, no matter what happened.
-        // This is what actually notifies the recipient that they were
-        // appreciated / nominated.
-        var fromEmployeeForNotification = await _db.Employees.FindAsync(userId);
-        var categoryForNotification = req.CategoryId.HasValue
-            ? await _db.AwardCategories.FindAsync(req.CategoryId.Value)
-            : null;
+        var nominator = await _db.Employees.FindAsync(userId);
+
+        if (req.Type == "nomination")
+        {
+            var audit = new NominationAudit
+            {
+                RecognitionId = recognition.Id,
+                Action = "Nominated",
+                PerformedBy = nominator?.Name ?? "CU Manager",
+                Role = userRole == "admin" ? "HR/Admin" : (userRole == "bu_manager" ? "BU Manager" : "CU Manager"),
+
+                Comments = $"Nominated {toEmployee.Name} for {category?.Name ?? customCategory} (Cycle: {awardCycle ?? "N/A"})",
+                CreatedDate = DateTime.UtcNow
+            };
+            _db.NominationAudits.Add(audit);
+            await _db.SaveChangesAsync();
+        }
 
         var notificationTitle = req.Type == "nomination"
             ? "You've been nominated!"
             : "You've been appreciated!";
-        var notificationMessage = categoryForNotification != null
-            ? $"{fromEmployeeForNotification?.Name} recognized you for \"{categoryForNotification.Name}\": {req.Message}"
-            : $"{fromEmployeeForNotification?.Name} sent you an appreciation: {req.Message}";
+        var notificationMessage = (category != null || customCategory != null)
+            ? $"{nominator?.Name} recognized you for \"{category?.Name ?? customCategory}\": {req.Message}"
+            : $"{nominator?.Name} sent you an appreciation: {req.Message}";
 
         _db.Notifications.Add(new Notification
         {
@@ -297,180 +407,85 @@ public class RecognitionsController : ControllerBase
         });
         await _db.SaveChangesAsync();
 
-        // The Dashboard/Employees endpoints cache their (shared, same-for-
-        // everyone) query results for a short TTL to survive 200 concurrent
-        // users. That's great for load, but without this, a brand-new
-        // appreciation would still not show up on the Dashboard until the
-        // old cache entry expired on its own (15-30s) — on top of the
-        // separate frontend cache issue. Busting it here means the very
-        // next dashboard/leaderboard request after this one is fresh.
         _cache.Remove("dashboard:shared");
         _cache.Remove("employees:all");
 
         var teamWebhookUrl = _configuration["Teams:WebhookUrl"];
-
         if (req.Type == "appreciation" && req.ShareToTeams && !string.IsNullOrWhiteSpace(teamWebhookUrl))
         {
-            var fromEmployee = await _db.Employees.FindAsync(userId);
-            var category = req.CategoryId.HasValue
-                ? await _db.AwardCategories.FindAsync(req.CategoryId.Value)
-                : null;
-
             var card = new
             {
-        type = "message",
-        attachments = new[]
-        {
-            new
-            {
-                contentType = "application/vnd.microsoft.card.adaptive",
-                content = new
-                {
-                    type = "AdaptiveCard",
-                    version = "1.4",
-
-                    body = new object[]
-{
-    // 🌟 TITLE
-    new
-    {
-        type = "TextBlock",
-        text = "🌟 Nexer Employee Appreciation",
-        weight = "Bolder",
-        size = "Large",
-        color = "Accent",
-        wrap = true
-    },
-
-    // 👤 PROFILE + APPRECIATION ROW
-    new
-    {
-        type = "ColumnSet",
-        columns = new object[]
-        {
-            new
-            {
-                type = "Column",
-                width = "auto",
-                items = new object[]
+                type = "message",
+                attachments = new[]
                 {
                     new
                     {
-                        type = "Image",
-                        url = AvatarHelper.GetAvatarUrl(recognition.ToEmployee.Name, recognition.ToEmployee.Avatar),
-                        size = "Medium",
-                        style = "Person"
-                    }
-                }
-            },
-            new
-            {
-                type = "Column",
-                width = "stretch",
-                items = new object[]
-                {
-                    new
-                    {
-                        type = "TextBlock",
-                        text = $"{recognition.ToEmployee.Name} has been appreciated 👏",
-                        weight = "Bolder",
-                        wrap = true
-                    },
-                    new
-                    {
-                        type = "TextBlock",
-                        text = $"{category?.Name}",
-                        color = "Accent",
-                        weight = "Bolder",
-                        size = "Medium",
-                        wrap = true
-                    }
-                }
-            }
-        }
-    },
-
-    // 🙌 Appreciated By
-    new
-    {
-        type = "TextBlock",
-        text = $"👏 Appreciated by: {fromEmployee?.Name}",
-        wrap = true
-    },
-
-    // 💬 Appreciation Message
-    new
-    {
-        type = "Container",
-        style = "emphasis",
-        items = new object[]
-        {
-            new
-            {
-                type = "TextBlock",
-                text = $"Message: {req.Message}",
-                wrap = true,
-                size = "Medium"
-            }
-        }
-    }
-},
-
-                    actions = new object[]
-                    {
-                        new
+                        contentType = "application/vnd.microsoft.card.adaptive",
+                        content = new
                         {
-                            type = "Action.OpenUrl",
-                            title = "🔗 View in App",
-                            url = "https://agreeable-grass-0a19b3703.7.azurestaticapps.net" // Azure portal NERP application link
+                            type = "AdaptiveCard",
+                            version = "1.4",
+                            body = new object[]
+                            {
+                                new { type = "TextBlock", text = "🌟 Nexer Employee Appreciation", weight = "Bolder", size = "Large", color = "Accent", wrap = true },
+                                new
+                                {
+                                    type = "ColumnSet",
+                                    columns = new object[]
+                                    {
+                                        new
+                                        {
+                                            type = "Column",
+                                            width = "auto",
+                                            items = new object[] { new { type = "Image", url = AvatarHelper.GetAvatarUrl(toEmployee.Name, toEmployee.Avatar), size = "Medium", style = "Person" } }
+                                        },
+                                        new
+                                        {
+                                            type = "Column",
+                                            width = "stretch",
+                                            items = new object[]
+                                            {
+                                                new { type = "TextBlock", text = $"{toEmployee.Name} has been appreciated 👏", weight = "Bolder", wrap = true },
+                                                new { type = "TextBlock", text = $"{category?.Name ?? customCategory}", color = "Accent", weight = "Bolder", size = "Medium", wrap = true }
+                                            }
+                                        }
+                                    }
+                                },
+                                new { type = "TextBlock", text = $"👏 Appreciated by: {nominator?.Name}", wrap = true },
+                                new { type = "Container", style = "emphasis", items = new object[] { new { type = "TextBlock", text = $"Message: {req.Message}", wrap = true, size = "Medium" } } }
+                            },
+                            actions = new object[] { new { type = "Action.OpenUrl", title = "🔗 View in App", url = "https://agreeable-grass-0a19b3703.7.azurestaticapps.net" } }
                         }
                     }
                 }
-            }
-        }
-    };
+            };
 
             using var httpClient = _httpClientFactory.CreateClient();
-            try
-            {
-                await httpClient.PostAsJsonAsync(teamWebhookUrl, card);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Failed to post appreciation card to Teams webhook.");
-            }
+            try { await httpClient.PostAsJsonAsync(teamWebhookUrl, card); }
+            catch (Exception ex) { _logger.LogWarning(ex, "Failed to post appreciation card to Teams webhook."); }
         }
 
         if (req.Type == "nomination")
         {
-            var admins = await _db.Employees
-            .Where(e => e.UserRole == "admin")
-            .ToListAsync();
-
-            var fromEmployee = await _db.Employees.FindAsync(userId);
-            var category = req.CategoryId.HasValue
-            ? await _db.AwardCategories.FindAsync(req.CategoryId.Value)
-            : null;
-
+            var admins = await _db.Employees.Where(e => e.UserRole == "admin").ToListAsync();
             foreach (var admin in admins)
             {
                 _ = Task.Run(async () =>
                 {
-                await _emailService.SendEmailAsync(
-                admin.Email,
-                "📢 New Nomination Needs Approval",
-                $@"
-                <h3>Hello {admin.Name}</h3>
-                <p><b>{fromEmployee?.Name}</b> nominated <b>{toEmployee?.Name}</b></p>
-                <p><b>Award:</b> {category?.Name}</p>
-                <p>Status: Pending Approval</p>
-                "
-                );
+                    await _emailService.SendEmailAsync(
+                        admin.Email,
+                        "📢 New Nomination Needs Approval",
+                        $@"
+                        <h3>Hello {admin.Name}</h3>
+                        <p><b>{nominator?.Name}</b> nominated <b>{toEmployee.Name}</b></p>
+                        <p><b>Award:</b> {category?.Name ?? customCategory}</p>
+                        <p>Status: Pending Approval</p>
+                        "
+                    );
                 });
             }
         }
 
-        // Reload with includes
         var result = await _db.Recognitions.AsNoTracking()
             .Select(r => new RecognitionResponseDto
             {
@@ -484,239 +499,575 @@ public class RecognitionsController : ControllerBase
                 CreatedAt = r.CreatedAt,
                 FromEmployee = new EmployeeSimpleDto { Id = r.FromEmployee.Id, Name = r.FromEmployee.Name, Department = r.FromEmployee.Department, Location = r.FromEmployee.Location, Avatar = r.FromEmployee.Avatar },
                 ToEmployee = new EmployeeSimpleDto { Id = r.ToEmployee.Id, Name = r.ToEmployee.Name, Department = r.ToEmployee.Department, Location = r.ToEmployee.Location, Avatar = r.ToEmployee.Avatar },
-                Category = r.Category == null ? null : new CategorySimpleDto { Id = r.Category.Id, Name = r.Category.Name, Icon = r.Category.Icon }
+                Category = r.Category == null ? null : new CategorySimpleDto { Id = r.Category.Id, Name = r.Category.Name, Icon = r.Category.Icon, AwardType = r.Category.AwardType },
+                CustomCategory = r.CustomCategory,
+                AwardCycle = r.AwardCycle,
+                BUManagerId = r.BUManagerId,
+                BUDecisionDate = r.BUDecisionDate,
+                HRAdminId = r.HRAdminId,
+                HRDecisionDate = r.HRDecisionDate
             })
             .FirstAsync(r => r.Id == recognition.Id);
 
         return Ok(result);
     }
 
+    [HttpGet("pending-approvals")]
+    public async Task<IActionResult> GetPendingApprovals()
+    {
+        var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+        var userRole = User.FindFirstValue("userRole")!;
+
+        var query = _db.Recognitions
+            .Include(r => r.FromEmployee)
+            .Include(r => r.ToEmployee)
+            .Include(r => r.Category)
+            .Include(r => r.Audits)
+            .AsNoTracking();
+
+        if (userRole == "admin")
+        {
+            query = query.Where(r => r.Type == "nomination" && r.Status == "BU Shortlisted");
+        }
+        else if (userRole == "bu_manager")
+        {
+            query = query.Where(r => r.Type == "nomination" &&
+                r.FromEmployee.ManagerId == userId &&
+                (r.Status == "Pending BU Approval" || r.Status == "Pending BU Review"));
+        }
+
+        else
+        {
+            return Ok(new List<RecognitionResponseDto>());
+        }
+
+        var list = await query
+            .OrderByDescending(r => r.CreatedAt)
+            .ToListAsync();
+
+        var dtos = list.Select(r => new RecognitionResponseDto
+        {
+            Id = r.Id,
+            FromEmployeeId = r.FromEmployeeId,
+            ToEmployeeId = r.ToEmployeeId,
+            Message = r.Message,
+            Type = r.Type,
+            Status = r.Status,
+            Points = r.Points,
+            CreatedAt = r.CreatedAt,
+            FromEmployee = new EmployeeSimpleDto { Id = r.FromEmployee.Id, Name = r.FromEmployee.Name, Department = r.FromEmployee.Department, Location = r.FromEmployee.Location, Avatar = r.FromEmployee.Avatar },
+            ToEmployee = new EmployeeSimpleDto { Id = r.ToEmployee.Id, Name = r.ToEmployee.Name, Department = r.ToEmployee.Department, Location = r.ToEmployee.Location, Avatar = r.ToEmployee.Avatar },
+            Category = r.Category == null ? null : new CategorySimpleDto { Id = r.Category.Id, Name = r.Category.Name, Icon = r.Category.Icon, AwardType = r.Category.AwardType },
+            CustomCategory = r.CustomCategory,
+            AwardCycle = r.AwardCycle,
+            BUManagerId = r.BUManagerId,
+            BUDecisionDate = r.BUDecisionDate,
+            HRAdminId = r.HRAdminId,
+            HRDecisionDate = r.HRDecisionDate,
+            Audits = r.Audits.Select(a => new NominationAuditDto
+            {
+                Id = a.Id,
+                Action = a.Action,
+                PerformedBy = a.PerformedBy,
+                Role = a.Role,
+                Comments = a.Comments,
+                CreatedDate = a.CreatedDate
+            }).ToList()
+        }).ToList();
+
+        return Ok(dtos);
+    }
+
+    private async Task<IActionResult> ProcessBuDecisionInternal(int id, BUDecisionRequest req, int userId, string userRole)
+    {
+        _logger.LogInformation("Processing BU Decision: NominationId={NominationId}, Decision={Decision}, PerformedBy={UserId}, Role={UserRole}", id, req.Decision, userId, userRole);
+
+        var recognition = await _db.Recognitions
+            .Include(r => r.FromEmployee)
+            .Include(r => r.ToEmployee)
+            .Include(r => r.Category)
+            .Include(r => r.Audits)
+            .FirstOrDefaultAsync(r => r.Id == id);
+
+        if (recognition == null)
+        {
+            _logger.LogWarning("BU Decision failed: Nomination {NominationId} was not found", id);
+            return NotFound(new { message = "Nomination not found." });
+        }
+
+        if (userRole == "bu_manager" && recognition.FromEmployee.ManagerId != userId)
+        {
+            _logger.LogWarning("BU Decision forbidden: User {UserId} is not the manager for nominator {NominatorId}", userId, recognition.FromEmployeeId);
+            return Forbid();
+        }
+
+        var manager = await _db.Employees.FindAsync(userId);
+        var managerName = manager?.Name ?? "BU Manager";
+
+        _logger.LogInformation("BU Review details: CurrentStatus={Status}, CategoryId={CategoryId}, AwardType={AwardType}, CustomCategory={CustomCategory}", 
+            recognition.Status, recognition.CategoryId, recognition.Category?.AwardType, recognition.CustomCategory);
+
+        if (recognition.Status == "Pending BU Approval") // Spot Award
+        {
+            if (req.Decision == "approve")
+            {
+                recognition.Status = "Approved";
+                recognition.BUManagerId = userId;
+                recognition.BUDecisionDate = DateTime.UtcNow;
+                recognition.Points = 500;
+                recognition.ToEmployee.TotalPoints += 500;
+
+                _db.PointsAudits.Add(new PointsAudit
+                {
+                    EmployeeId = recognition.ToEmployeeId,
+                    Points = 500,
+                    Reason = $"Approved Spot Award: {recognition.Category?.Name ?? recognition.CustomCategory}",
+                    RecognitionId = recognition.Id,
+                    CreatedDate = DateTime.UtcNow
+                });
+
+                _db.NominationAudits.Add(new NominationAudit
+                {
+                    RecognitionId = recognition.Id,
+                    Action = "Approved",
+                    PerformedBy = managerName,
+                    Role = "BU Manager",
+                    Comments = req.Comments ?? "Approved Spot Award",
+                    CreatedDate = DateTime.UtcNow
+                });
+
+                _db.Notifications.Add(new Notification
+                {
+                    EmployeeId = recognition.ToEmployeeId,
+                    Title = "Your Spot Award nomination was approved!",
+                    Message = $"Your nomination for \"{recognition.Category?.Name ?? recognition.CustomCategory}\" was approved — you earned 500 points!",
+                    Type = "award",
+                    IsRead = false,
+                    CreatedAt = DateTime.UtcNow
+                });
+
+                await _db.SaveChangesAsync();
+                _cache.Remove("dashboard:shared");
+                _cache.Remove("employees:all");
+
+                await SendTeamsAwardNotification(recognition, recognition.FromEmployee.Name);
+            }
+            else if (req.Decision == "reject")
+            {
+                recognition.Status = "Rejected";
+                recognition.BUManagerId = userId;
+                recognition.BUDecisionDate = DateTime.UtcNow;
+
+                _db.NominationAudits.Add(new NominationAudit
+                {
+                    RecognitionId = recognition.Id,
+                    Action = "Rejected",
+                    PerformedBy = managerName,
+                    Role = "BU Manager",
+                    Comments = req.Comments ?? "Rejected Spot Award",
+                    CreatedDate = DateTime.UtcNow
+                });
+
+                await _db.SaveChangesAsync();
+            }
+            else
+            {
+                _logger.LogWarning("BU Decision failed: Invalid decision '{Decision}' for Spot Award", req.Decision);
+                return BadRequest(new { message = $"Invalid decision '{req.Decision}' for Spot Award." });
+            }
+        }
+        else if (recognition.Status == "Pending BU Review") // Performance Award
+        {
+            if (req.Decision == "shortlist")
+            {
+                var categoryId = recognition.CategoryId;
+                var cycle = recognition.AwardCycle;
+
+                var cuManagerIds = await _db.Employees
+                    .Where(e => e.ManagerId == userId)
+                    .Select(e => e.Id)
+                    .ToListAsync();
+
+                var buNominatorIds = new List<int> { userId };
+                buNominatorIds.AddRange(cuManagerIds);
+
+                var alreadyShortlisted = await _db.Recognitions
+                    .AnyAsync(r => buNominatorIds.Contains(r.FromEmployeeId) &&
+                                   r.CategoryId == categoryId &&
+                                   r.AwardCycle == cycle &&
+                                   r.Status == "BU Shortlisted");
+
+                if (alreadyShortlisted)
+                {
+                    _logger.LogWarning("BU Decision failed: Category '{Category}' already shortlisted for cycle '{Cycle}' under BU Manager {UserId}", recognition.Category?.Name, cycle, userId);
+                    return BadRequest(new { message = $"You have already shortlisted a nominee for this performance category in cycle '{cycle}'." });
+                }
+
+                recognition.Status = "BU Shortlisted";
+                recognition.BUManagerId = userId;
+                recognition.BUDecisionDate = DateTime.UtcNow;
+
+                _db.NominationAudits.Add(new NominationAudit
+                {
+                    RecognitionId = recognition.Id,
+                    Action = "Shortlisted",
+                    PerformedBy = managerName,
+                    Role = "BU Manager",
+                    Comments = req.Comments ?? "Shortlisted for HR review",
+                    CreatedDate = DateTime.UtcNow
+                });
+
+                var otherPendingNominations = await _db.Recognitions
+                    .Where(r => r.Id != recognition.Id &&
+                               buNominatorIds.Contains(r.FromEmployeeId) &&
+                               r.CategoryId == categoryId &&
+                               r.AwardCycle == cycle &&
+                               r.Status == "Pending BU Review")
+                    .ToListAsync();
+
+                foreach (var other in otherPendingNominations)
+                {
+                    other.Status = "Not Selected";
+                    other.BUManagerId = userId;
+                    other.BUDecisionDate = DateTime.UtcNow;
+
+                    _db.NominationAudits.Add(new NominationAudit
+                    {
+                        RecognitionId = other.Id,
+                        Action = "Not Selected",
+                        PerformedBy = managerName,
+                        Role = "BU Manager",
+                        Comments = "Not shortlisted by BU Manager",
+                        CreatedDate = DateTime.UtcNow
+                    });
+                }
+
+                await _db.SaveChangesAsync();
+            }
+            else if (req.Decision == "reject")
+            {
+                recognition.Status = "Rejected";
+                recognition.BUManagerId = userId;
+                recognition.BUDecisionDate = DateTime.UtcNow;
+
+                _db.NominationAudits.Add(new NominationAudit
+                {
+                    RecognitionId = recognition.Id,
+                    Action = "Rejected",
+                    PerformedBy = managerName,
+                    Role = "BU Manager",
+                    Comments = req.Comments ?? "Rejected Performance Award nomination",
+                    CreatedDate = DateTime.UtcNow
+                });
+
+                await _db.SaveChangesAsync();
+            }
+            else
+            {
+                _logger.LogWarning("BU Decision failed: Invalid decision '{Decision}' for Performance Award", req.Decision);
+                return BadRequest(new { message = $"Invalid decision '{req.Decision}' for Performance Award." });
+            }
+        }
+        else
+        {
+            _logger.LogWarning("BU Decision failed: Nomination {NominationId} is in status '{Status}', not pending BU review", id, recognition.Status);
+            return BadRequest(new { message = $"Nomination is not in a status that allows BU decision. Current status: '{recognition.Status}'" });
+        }
+
+        return NoContent();
+    }
+
+    private async Task<IActionResult> ProcessHrDecisionInternal(int id, HRDecisionRequest req, int userId)
+    {
+        _logger.LogInformation("Processing HR Decision: NominationId={NominationId}, Decision={Decision}, PerformedBy={UserId}", id, req.Decision, userId);
+
+        var recognition = await _db.Recognitions
+            .Include(r => r.FromEmployee)
+            .Include(r => r.ToEmployee)
+            .Include(r => r.Category)
+            .Include(r => r.Audits)
+            .FirstOrDefaultAsync(r => r.Id == id);
+
+        if (recognition == null)
+        {
+            _logger.LogWarning("HR Decision failed: Nomination {NominationId} was not found", id);
+            return NotFound(new { message = "Nomination not found." });
+        }
+
+        if (recognition.Status != "BU Shortlisted")
+        {
+            _logger.LogWarning("HR Decision failed: Nomination {NominationId} status is '{Status}', expected 'BU Shortlisted'", id, recognition.Status);
+            return BadRequest(new { message = $"Only BU Shortlisted nominations can be processed by HR/Admin. Current status: '{recognition.Status}'" });
+        }
+
+        var admin = await _db.Employees.FindAsync(userId);
+        var adminName = admin?.Name ?? "HR/Admin";
+
+        if (req.Decision == "select")
+        {
+            var categoryId = recognition.CategoryId;
+            var cycle = recognition.AwardCycle;
+
+            var alreadyWinner = await _db.Recognitions
+                .AnyAsync(r => r.CategoryId == categoryId &&
+                               r.AwardCycle == cycle &&
+                               r.Status == "Approved Winner");
+
+            if (alreadyWinner)
+            {
+                _logger.LogWarning("HR Decision failed: Winner already selected for category '{Category}' in cycle '{Cycle}'", recognition.Category?.Name, cycle);
+                return BadRequest(new { message = $"A winner has already been selected for this performance category in cycle '{cycle}'." });
+            }
+
+            recognition.Status = "Approved Winner";
+            recognition.HRAdminId = userId;
+            recognition.HRDecisionDate = DateTime.UtcNow;
+            recognition.ToEmployee.TotalPoints += recognition.Points;
+
+            _db.PointsAudits.Add(new PointsAudit
+            {
+                EmployeeId = recognition.ToEmployeeId,
+                Points = recognition.Points,
+                Reason = $"Winner Selected: {recognition.Category?.Name} (Cycle: {recognition.AwardCycle})",
+                RecognitionId = recognition.Id,
+                CreatedDate = DateTime.UtcNow
+            });
+
+            _db.NominationAudits.Add(new NominationAudit
+            {
+                RecognitionId = recognition.Id,
+                Action = "Winner Selected",
+                PerformedBy = adminName,
+                Role = "HR/Admin",
+                Comments = req.Comments ?? "Winner Selected by HR/Admin",
+                CreatedDate = DateTime.UtcNow
+            });
+
+            _db.Notifications.Add(new Notification
+            {
+                EmployeeId = recognition.ToEmployeeId,
+                Title = $"Congratulations! You won the {recognition.Category?.Name}!",
+                Message = $"You were selected as the winner for \"{recognition.Category?.Name}\" (Cycle: {recognition.AwardCycle}) — you earned {recognition.Points} points!",
+                Type = "award",
+                IsRead = false,
+                CreatedAt = DateTime.UtcNow
+            });
+
+            var otherShortlisted = await _db.Recognitions
+                .Where(r => r.Id != recognition.Id &&
+                           r.CategoryId == categoryId &&
+                           r.AwardCycle == cycle &&
+                           r.Status == "BU Shortlisted")
+                .ToListAsync();
+
+            foreach (var other in otherShortlisted)
+            {
+                other.Status = "Not Selected";
+                other.HRAdminId = userId;
+                other.HRDecisionDate = DateTime.UtcNow;
+
+                _db.NominationAudits.Add(new NominationAudit
+                {
+                    RecognitionId = other.Id,
+                    Action = "Not Selected",
+                    PerformedBy = adminName,
+                    Role = "HR/Admin",
+                    Comments = "Not selected by HR/Admin",
+                    CreatedDate = DateTime.UtcNow
+                });
+            }
+
+            await _db.SaveChangesAsync();
+            _cache.Remove("dashboard:shared");
+            _cache.Remove("employees:all");
+
+            await SendTeamsAwardNotification(recognition, recognition.FromEmployee.Name);
+        }
+        else if (req.Decision == "reject")
+        {
+            recognition.Status = "Rejected";
+            recognition.HRAdminId = userId;
+            recognition.HRDecisionDate = DateTime.UtcNow;
+
+            _db.NominationAudits.Add(new NominationAudit
+            {
+                RecognitionId = recognition.Id,
+                Action = "Rejected",
+                PerformedBy = adminName,
+                Role = "HR/Admin",
+                Comments = req.Comments ?? "Rejected by HR/Admin",
+                CreatedDate = DateTime.UtcNow
+            });
+
+            await _db.SaveChangesAsync();
+        }
+        else
+        {
+            _logger.LogWarning("HR Decision failed: Invalid decision '{Decision}'", req.Decision);
+            return BadRequest(new { message = $"Invalid decision '{req.Decision}'." });
+        }
+
+        return NoContent();
+    }
+
+    [HttpPut("{id}/bu-decision")]
+    public async Task<IActionResult> BuDecision(int id, [FromBody] BUDecisionRequest req)
+    {
+        var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+        var userRole = User.FindFirstValue("userRole")!;
+        if (userRole != "bu_manager" && userRole != "admin")
+            return Forbid();
+
+        if (req == null)
+        {
+            return BadRequest(new { message = "Decision request body is required." });
+        }
+
+        return await ProcessBuDecisionInternal(id, req, userId, userRole);
+    }
+
+    [HttpPut("{id}/hr-decision")]
+    [Authorize(Roles = "admin")]
+    public async Task<IActionResult> HrDecision(int id, [FromBody] HRDecisionRequest req)
+    {
+        var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+        if (req == null)
+        {
+            return BadRequest(new { message = "Decision request body is required." });
+        }
+
+        return await ProcessHrDecisionInternal(id, req, userId);
+    }
+
     [HttpPut("{id}/approve")]
     public async Task<IActionResult> Approve(int id)
     {
+        var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
         var userRole = User.FindFirstValue("userRole")!;
-        if (userRole != "manager" && userRole != "admin")
-            return Forbid();
 
-        var recognition = await _db.Recognitions
-     .Include(r => r.ToEmployee)
-     .Include(r => r.Category)
-     .FirstOrDefaultAsync(r => r.Id == id);
+        var recognition = await _db.Recognitions.FindAsync(id);
         if (recognition == null) return NotFound();
 
-        // Guard against double-processing: without this check, calling
-        // approve twice (double click, retried request, race condition)
-        // would add recognition.Points to ToEmployee.TotalPoints a second
-        // time. Only a pending nomination can be approved.
-        if (recognition.Type != "nomination" || recognition.Status != "pending")
-            return Conflict(new { message = "Only a pending nomination can be approved." });
+        _logger.LogInformation("Legacy Approve redirect: NominationId={NominationId}, CurrentStatus={Status}, User={UserId}, Role={UserRole}", id, recognition.Status, userId, userRole);
 
-        recognition.Status = "approved";
-
-        if (recognition.Points > 0)
+        if (recognition.Status == "Pending BU Approval")
         {
-            recognition.ToEmployee.TotalPoints += recognition.Points;
+            return await ProcessBuDecisionInternal(id, new BUDecisionRequest { Decision = "approve" }, userId, userRole);
+        }
+        else if (recognition.Status == "BU Shortlisted" && userRole == "admin")
+        {
+            return await ProcessHrDecisionInternal(id, new HRDecisionRequest { Decision = "select" }, userId);
+        }
+        else if (recognition.Status == "Pending BU Review")
+        {
+            return await ProcessBuDecisionInternal(id, new BUDecisionRequest { Decision = "shortlist" }, userId, userRole);
         }
 
-        _db.Notifications.Add(new Notification
-        {
-            EmployeeId = recognition.ToEmployeeId,
-            Title = "Your nomination was approved!",
-            Message = recognition.Points > 0
-                ? $"Your \"{recognition.Category?.Name}\" nomination was approved — you earned {recognition.Points} points!"
-                : "Your nomination was approved!",
-            Type = "award",
-            IsRead = false,
-            CreatedAt = DateTime.UtcNow
-        });
-
-        await _db.SaveChangesAsync();
-
-        // Same reason as in Create(): approving changes points/leaderboard
-        // data, which is served from the shared cache — bust it now so it
-        // doesn't wait out the TTL.
-        _cache.Remove("dashboard:shared");
-        _cache.Remove("employees:all");
-
-        var teamWebhookUrl = _configuration["Teams:WebhookUrl"];
-        var fromEmployee = await _db.Employees.FindAsync(recognition.FromEmployeeId);
-        if (!string.IsNullOrWhiteSpace(teamWebhookUrl) && fromEmployee != null)
-        {
-            var card = new
-            {
-    type = "message",
-    attachments = new[]
-    {
-        new
-        {
-            contentType = "application/vnd.microsoft.card.adaptive",
-            content = new
-            {
-                type = "AdaptiveCard",
-                version = "1.4",
-                body = new object[]
-                {
-                    // 🎉 TITLE
-                    new
-                    {
-                        type = "TextBlock",
-                        text = $"🎉 Congratulations on this milestone, {recognition.ToEmployee.Name}!",
-                        weight = "Bolder",
-                        size = "Large",
-                        color = "Good",
-                        wrap = true
-                    },
-
-                    // 👤 PROFILE + AWARD ROW
-                    new
-                    {
-                        type = "ColumnSet",
-                        columns = new object[]
-                        {
-                            new
-                            {
-                                type = "Column",
-                                width = "auto",
-                                items = new object[]
-                                {
-                                    new
-                                    {
-                                        type = "Image",
-                                        url = AvatarHelper.GetAvatarUrl(recognition.ToEmployee.Name, recognition.ToEmployee.Avatar),
-                                        size = "Medium",
-                                        style = "Person"
-                                    }
-                                }
-                            },
-                            new
-                            {
-                                type = "Column",
-                                width = "stretch",
-                                items = new object[]
-                                {
-                                    new
-                                    {
-                                        type = "TextBlock",
-                                        text = $"{recognition.ToEmployee.Name} has been awarded",
-                                        weight = "Bolder",
-                                        wrap = true
-                                    },
-                                    new
-                                    {
-                                        type = "TextBlock",
-                                        text = $"🏅 {recognition.Category?.Name}",
-                                        color = "Accent",
-                                        weight = "Bolder",
-                                        size = "Medium",
-                                        wrap = true
-                                    }
-                                }
-                            }
-                        }
-                    },
-
-                    // 🙌 NOMINATOR
-                    new
-                    {
-                        type = "TextBlock",
-                        text = $"👏 Nominated by: {fromEmployee?.Name}",
-                        wrap = true
-                    },
-
-                    // 💬 MESSAGE (styled box)
-                    new
-                    {
-                        type = "Container",
-                        style = "emphasis",
-                        items = new object[]
-                        {
-                            new
-                            {
-                                type = "TextBlock",
-                                text = $"Reason: {recognition.Message}",
-                                wrap = true,
-                                size = "Medium"
-                            }
-                        }
-                    }
-                },
-
-                // 🔘 BUTTON
-                actions = new object[]
-                {
-                    new
-                    {
-                        type = "Action.OpenUrl",
-                        title = "🔗 View in App",
-                        url = "https://agreeable-grass-0a19b3703.7.azurestaticapps.net" // Azure portal NERP application link
-                    }
-                }
-            }
-        }
-    }
-};
-
-            using var httpClient = _httpClientFactory.CreateClient();
-            await httpClient.PostAsJsonAsync(teamWebhookUrl, card);
-        }
-
-        if (fromEmployee != null)
-        {
-            _ = Task.Run(async () =>
-            {
-            await _emailService.SendEmailAsync(
-            fromEmployee.Email,
-            "✅ Your Nomination Was Approved",
-            $@"
-            <h3>Hello {fromEmployee.Name}</h3>
-            <p>Your nomination for <b>{recognition.ToEmployee.Name}</b> has been approved.</p>
-            <p><b>Award:</b> {recognition.Category?.Name}</p>
-        "
-        );
-        });
-        };
-
-        return NoContent();
+        return BadRequest(new { message = $"Nomination cannot be approved. Current status is '{recognition.Status}'." });
     }
 
     [HttpPut("{id}/reject")]
     public async Task<IActionResult> Reject(int id)
     {
+        var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
         var userRole = User.FindFirstValue("userRole")!;
-        if (userRole != "manager" && userRole != "admin")
-            return Forbid();
 
-        var recognition = await _db.Recognitions
-    .Include(r => r.ToEmployee)
-    .Include(r => r.Category)
-    .FirstOrDefaultAsync(r => r.Id == id);
+        var recognition = await _db.Recognitions.FindAsync(id);
         if (recognition == null) return NotFound();
 
-        if (recognition.Type != "nomination" || recognition.Status != "pending")
-            return Conflict(new { message = "Only a pending nomination can be rejected." });
+        _logger.LogInformation("Legacy Reject redirect: NominationId={NominationId}, CurrentStatus={Status}, User={UserId}, Role={UserRole}", id, recognition.Status, userId, userRole);
 
-        recognition.Status = "rejected";
-        await _db.SaveChangesAsync();
-         var fromEmployee = await _db.Employees
-        .FirstOrDefaultAsync(e => e.Id == recognition.FromEmployeeId);
-
-        if (fromEmployee != null)
+        if (recognition.Status == "Pending BU Approval" || recognition.Status == "Pending BU Review")
         {
-            _ = Task.Run(async () =>
-            {
-            await _emailService.SendEmailAsync(
-            fromEmployee.Email,
-            "❌ Your Nomination Was Rejected",
-            $@"
-            <h3>Hello {fromEmployee.Name}</h3>
-            <p>Your nomination for <b>{recognition.ToEmployee.Name}</b> was rejected.</p>
-            <p><b>Award:</b> {recognition.Category?.Name}</p>
-            "
-            );
-            });
+            return await ProcessBuDecisionInternal(id, new BUDecisionRequest { Decision = "reject" }, userId, userRole);
+        }
+        else if (recognition.Status == "BU Shortlisted")
+        {
+            return await ProcessHrDecisionInternal(id, new HRDecisionRequest { Decision = "reject" }, userId);
         }
 
-        return NoContent();
+        return BadRequest(new { message = $"Nomination cannot be rejected. Current status is '{recognition.Status}'." });
+    }
+
+
+    private async Task SendTeamsAwardNotification(Recognition recognition, string nominatorName)
+    {
+        var teamWebhookUrl = _configuration["Teams:WebhookUrl"];
+        if (string.IsNullOrWhiteSpace(teamWebhookUrl)) return;
+
+        var awardName = recognition.Category?.Name ?? recognition.CustomCategory ?? "Spot Award";
+        var pointsText = recognition.Points > 0 ? $"+{recognition.Points} pts" : "";
+
+        var card = new
+        {
+            type = "message",
+            attachments = new[]
+            {
+                new
+                {
+                    contentType = "application/vnd.microsoft.card.adaptive",
+                    content = new
+                    {
+                        type = "AdaptiveCard",
+                        version = "1.4",
+                        body = new object[]
+                        {
+                            new
+                            {
+                                type = "TextBlock",
+                                text = $"🎉 Congratulations on this award, {recognition.ToEmployee.Name}!",
+                                weight = "Bolder",
+                                size = "Large",
+                                color = "Good",
+                                wrap = true
+                            },
+                            new
+                            {
+                                type = "ColumnSet",
+                                columns = new object[]
+                                {
+                                    new
+                                    {
+                                        type = "Column",
+                                        width = "auto",
+                                        items = new object[]
+                                        {
+                                            new
+                                            {
+                                                type = "Image",
+                                                url = AvatarHelper.GetAvatarUrl(recognition.ToEmployee.Name, recognition.ToEmployee.Avatar),
+                                                size = "Medium",
+                                                style = "Person"
+                                            }
+                                        }
+                                    },
+                                    new
+                                    {
+                                        type = "Column",
+                                        width = "stretch",
+                                        items = new object[]
+                                        {
+                                            new { type = "TextBlock", text = $"{recognition.ToEmployee.Name} has been awarded", weight = "Bolder", wrap = true },
+                                            new { type = "TextBlock", text = $"🏅 {awardName} {pointsText}", color = "Accent", weight = "Bolder", size = "Medium", wrap = true }
+                                        }
+                                    }
+                                }
+                            },
+                            new { type = "TextBlock", text = $"👏 Nominated by: {nominatorName}", wrap = true },
+                            new { type = "Container", style = "emphasis", items = new object[] { new { type = "TextBlock", text = $"Reason: {recognition.Message}", wrap = true, size = "Medium" } } }
+                        },
+                        actions = new object[]
+                        {
+                            new { type = "Action.OpenUrl", title = "🔗 View in App", url = "https://agreeable-grass-0a19b3703.7.azurestaticapps.net" }
+                        }
+                    }
+                }
+            }
+        };
+
+        using var httpClient = _httpClientFactory.CreateClient();
+        try { await httpClient.PostAsJsonAsync(teamWebhookUrl, card); }
+        catch (Exception ex) { _logger.LogWarning(ex, "Failed to post award card to Teams webhook."); }
     }
 
     // ---- Reactions (Recognition Page: like button + comments) ----

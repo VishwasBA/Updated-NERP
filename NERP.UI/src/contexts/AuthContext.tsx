@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect, useCallback, useMemo, ReactNode } from "react";
 import { authApi, ApiCurrentUser } from "@/services/api";
 import { getAuthToken, setAuthToken, clearAuthToken } from "@/lib/auth";
+import { useQueryClient } from "@tanstack/react-query";
 
 interface AuthContextType {
   user: ApiCurrentUser | null;
@@ -16,6 +17,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<ApiCurrentUser | null>(null);
   const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     let isMounted = true;
@@ -31,9 +33,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     authApi
       .me()
       .then((userData) => {
+        console.log("CurrentUser from /auth/me:", userData);
         if (isMounted) setUser(userData);
       })
-      .catch(() => {
+      .catch((err) => {
+        console.error("AuthContext /auth/me error:", err);
         if (isMounted) {
           clearAuthToken();
           setUser(null);
@@ -49,14 +53,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const login = useCallback((token: string, userData: ApiCurrentUser) => {
+    console.log("CurrentUser from login:", userData);
     setAuthToken(token);
     setUser(userData);
   }, []);
 
+
   const logout = useCallback(() => {
     clearAuthToken();
     setUser(null);
-  }, []);
+    queryClient.clear();
+  }, [queryClient]);
 
   const updatePoints = useCallback((delta: number) => {
     setUser((prev) => {
