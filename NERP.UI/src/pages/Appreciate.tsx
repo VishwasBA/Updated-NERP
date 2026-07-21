@@ -1,15 +1,17 @@
-import { useState } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Heart, CheckCircle, ChevronsUpDown, X, Star, ArrowRight, Award } from "lucide-react";
+import { Heart, CheckCircle, ChevronsUpDown, X, Star, ArrowRight, Award, Users, Check } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   useEmployees,
   useAwardCategories,
   useCreateRecognition,
   useRecentRecognitions,
+  useBulkAppreciate,
 } from "@/hooks/useApiData";
 import { ApiRecognition } from "@/services/api";
 import { toast } from "sonner";
@@ -136,11 +138,10 @@ export default function SendAppreciation() {
   const { data: categories = [] } = useAwardCategories();
   const { data: recentRecognitions = [] } = useRecentRecognitions(4);
   const createMutation = useCreateRecognition();
+  const bulkMutation = useBulkAppreciate();
 
-  // Deep-linked from the Manager Dashboard's "Recognize" action on an
-  // under-recognized team member — pre-selects them in the wizard.
+  const isAdmin = user?.userRole === "admin";
   const prefillEmployeeId = (location.state as { employeeId?: number } | null)?.employeeId ?? null;
-
   const availableCategories = categories.filter((c) => !c.managerOnly);
 
   const handleSend = async ({
@@ -149,19 +150,42 @@ export default function SendAppreciation() {
     message,
   }: {
     toEmployeeId: number;
-    categoryId: number;
+    categoryId: number | null;
     message: string;
   }) => {
     try {
       await createMutation.mutateAsync({
         toEmployeeId,
         message,
-        categoryId,
+        categoryId: categoryId || undefined,
         type: "appreciation",
       });
       toast.success("Appreciation sent! 🎉");
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Failed to send appreciation";
+      toast.error(msg);
+      throw err;
+    }
+  };
+
+  const handleBulkSend = async ({
+    recipientIds,
+    categoryId,
+    message,
+  }: {
+    recipientIds: number[];
+    categoryId: number | null;
+    message: string;
+  }) => {
+    try {
+      await bulkMutation.mutateAsync({
+        recipientIds,
+        categoryId,
+        message,
+      });
+      toast.success("Bulk appreciation sent successfully! 🎉");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to send bulk appreciation";
       toast.error(msg);
       throw err;
     }
@@ -235,20 +259,21 @@ export default function SendAppreciation() {
         </Card>
       </div>
 
-
       <NominationWizard
         heading="Send Appreciation"
         categories={availableCategories}
         employees={employees}
         currentUserId={user?.id}
-        isSubmitting={createMutation.isPending}
+        isSubmitting={createMutation.isPending || bulkMutation.isPending}
         submitLabel="Send Appreciation"
         successTitle="Appreciation Sent!"
-        successMessage="Your colleague will be notified of your recognition and it'll appear on the Wall of Fame."
+        successMessage="Your colleague(s) will be notified of your recognition and it'll appear on the Wall of Fame."
         footerNote="Appreciation is a free-form kudos — it doesn't carry points, but it's visible to the whole team and shown on the Wall of Fame."
         onSubmit={handleSend}
+        onBulkSubmit={handleBulkSend}
         initialEmployeeId={prefillEmployeeId}
         pointsEnabled={false}
+        bulkEnabled={isAdmin}
       />
 
       {/* ── Recent Appreciations ── */}
@@ -264,7 +289,6 @@ export default function SendAppreciation() {
         ) : (
           <div className="grid sm:grid-cols-2 gap-3">
             {recentRecognitions.map((item, i) => {
-              // Safely resolve category name from API object or string
               const catName = safeCatName(item.category) || safeCatName(item.categoryId);
               const cfg = catName ? CAT_CFG[catName] : null;
 
@@ -286,7 +310,6 @@ export default function SendAppreciation() {
                   <CardContent className="p-4">
                     <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
 
-                      {/* From */}
                       <div className="flex flex-col items-center gap-0.5 min-w-[52px]">
                         <UserAvatar name={fromName} avatar={fromAvatar} size="h-8 w-8" fallbackClassName="text-[10px]" />
                         <span className="text-[10px] text-muted-foreground text-center leading-tight">{fromName}</span>
@@ -295,14 +318,12 @@ export default function SendAppreciation() {
 
                       <ArrowRight className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
 
-                      {/* To */}
                       <div className="flex flex-col items-center gap-0.5 min-w-[52px]">
                         <UserAvatar name={toName} avatar={toAvatar} size="h-8 w-8" fallbackClassName="text-[10px]" />
                         <span className="text-[10px] text-muted-foreground text-center leading-tight">{toName}</span>
                         <span className="text-[10px] text-muted-foreground text-center leading-tight">{toDept}</span>
                       </div>
 
-                      {/* Category badge — only if we have a valid string name */}
                       {catName && cfg && (
                         <div
                           style={{ background: cfg.bg, color: cfg.color }}
@@ -315,12 +336,10 @@ export default function SendAppreciation() {
                         </div>
                       )}
 
-                      {/* Message snippet */}
                       <div className="flex-1 min-w-0">
                         <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">{msgText}</p>
                       </div>
 
-                      {/* Time */}
                       <span className="text-[10px] text-muted-foreground whitespace-nowrap self-start flex-shrink-0">
                         {timeLabel}
                       </span>

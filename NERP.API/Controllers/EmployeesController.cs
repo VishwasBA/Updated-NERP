@@ -47,7 +47,8 @@ public class EmployeesController : ControllerBase
                     Location = e.Location,
                     BirthDate = e.BirthDate,
                     JoiningDate = e.JoiningDate,
-                    Avatar = e.Avatar
+                    Avatar = e.Avatar,
+                    ManagerId = e.ManagerId
                 })
                 .OrderByDescending(e => e.TotalPoints)
                 .ToListAsync();

@@ -37,4 +37,5 @@ public class EmployeeDto
     public DateOnly? BirthDate { get; set; }
     public DateOnly? JoiningDate { get; set; }
     public string Avatar { get; set; } = string.Empty;
+    public int? ManagerId { get; set; }
 }

@@ -460,6 +460,46 @@ export function useAddComment() {
   });
 }
 
+export function useEditComment() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ commentId, message }: { commentId: number; message: string }) =>
+      recognitionsApi.editComment(commentId, message),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["recognitions", "comments", data.recognitionId] });
+      queryClient.invalidateQueries({ queryKey: ["recognitions"] });
+      queryClient.invalidateQueries({ queryKey: ["wall-of-fame"] });
+    },
+  });
+}
+
+export function useDeleteComment() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ commentId, recognitionId }: { commentId: number; recognitionId: number }) =>
+      recognitionsApi.deleteComment(commentId),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["recognitions", "comments", variables.recognitionId] });
+      queryClient.invalidateQueries({ queryKey: ["recognitions"] });
+      queryClient.invalidateQueries({ queryKey: ["wall-of-fame"] });
+    },
+  });
+}
+
+export function useBulkAppreciate() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ recipientIds, categoryId, message }: { recipientIds: number[]; categoryId: number | null; message: string }) =>
+      recognitionsApi.bulkAppreciate(recipientIds, categoryId, message),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["recognitions"] });
+      queryClient.invalidateQueries({ queryKey: ["wall-of-fame"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      queryClient.invalidateQueries({ queryKey: ["employees"] });
+    },
+  });
+}
+
 // ---- Manager self-service team membership ----
 export function useAvailableEmployees(search: string) {
   const { user } = useAuth();

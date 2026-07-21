@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { User as UserIcon, Trophy, Grid3x3, ShoppingBag, Flag } from "lucide-react";
+import { User as UserIcon, Trophy, Grid3x3, ShoppingBag, Flag, LogOut } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { UserAvatar } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
@@ -8,6 +8,7 @@ import MyRecognitionPanel from "@/components/profile/MyRecognitionPanel";
 import MyPointsPanel from "@/components/profile/MyPointsPanel";
 import MyOrdersPanel from "@/components/profile/MyOrdersPanel";
 import MyMilestonesPanel from "@/components/profile/MyMilestonesPanel";
+import { useNavigate } from "react-router-dom";
 
 type TabKey = "profile" | "recognition" | "points" | "milestones" | "orders";
 
@@ -20,8 +21,14 @@ const TABS: { key: TabKey; label: string; icon: typeof UserIcon }[] = [
 ];
 
 export default function Profile() {
-  const { user, loading } = useAuth();
+  const { user, loading, logout } = useAuth();
   const [tab, setTab] = useState<TabKey>("profile");
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    logout();
+    navigate("/login");
+  };
 
   if (loading) {
     return (
@@ -60,6 +67,16 @@ export default function Profile() {
             </button>
           ))}
         </nav>
+
+        <div className="mt-4 border-t border-slate-100 pt-4 dark:border-slate-800">
+          <button
+            onClick={handleLogout}
+            className="flex w-full items-center gap-3 rounded-xl bg-rose-50 px-4 py-2.5 text-sm font-semibold text-rose-600 transition hover:bg-rose-100 dark:bg-rose-950/30 dark:text-rose-400 dark:hover:bg-rose-950/50"
+          >
+            <LogOut className="h-4.5 w-4.5 shrink-0" />
+            Logout
+          </button>
+        </div>
       </aside>
 
       {/* Active panel */}

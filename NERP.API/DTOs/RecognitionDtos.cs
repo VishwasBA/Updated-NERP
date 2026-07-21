@@ -80,6 +80,13 @@ public class CreateCommentRequest
     public string Message { get; set; } = string.Empty;
 }
 
+public class BulkAppreciateRequest
+{
+    public List<int> RecipientIds { get; set; } = new List<int>();
+    public int? CategoryId { get; set; }
+    public string Message { get; set; } = string.Empty;
+}
+
 public class LikeStatusDto
 {
     public int LikeCount { get; set; }

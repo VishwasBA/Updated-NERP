@@ -1214,6 +1214,11 @@ public class RecognitionsController : ControllerBase
     {
         if (string.IsNullOrWhiteSpace(req.Message))
             return BadRequest(new { message = "Comment cannot be empty." });
+
+        var words = req.Message.Trim().Split(new[] { ' ', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+        if (words.Length > 100)
+            return BadRequest(new { message = "Comments cannot exceed 100 words." });
+
         if (req.Message.Length > 500)
             return BadRequest(new { message = "Comment must be 500 characters or fewer." });
 
@@ -1247,5 +1252,150 @@ public class RecognitionsController : ControllerBase
                 Avatar = employee.Avatar
             }
         });
+    }
+
+    [HttpPut("comments/{commentId}")]
+    public async Task<IActionResult> EditComment(int commentId, [FromBody] CreateCommentRequest req)
+    {
+        if (string.IsNullOrWhiteSpace(req.Message))
+            return BadRequest(new { message = "Comment cannot be empty." });
+
+        var words = req.Message.Trim().Split(new[] { ' ', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+        if (words.Length > 100)
+            return BadRequest(new { message = "Comments cannot exceed 100 words." });
+
+        if (req.Message.Length > 500)
+            return BadRequest(new { message = "Comment must be 500 characters or fewer." });
+
+        var comment = await _db.RecognitionComments
+            .Include(c => c.Employee)
+            .FirstOrDefaultAsync(c => c.Id == commentId);
+
+        if (comment == null) return NotFound(new { message = "Comment not found" });
+
+        var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+        if (comment.EmployeeId != userId)
+            return Forbid();
+
+        comment.Message = req.Message.Trim();
+        await _db.SaveChangesAsync();
+
+        return Ok(new RecognitionCommentDto
+        {
+            Id = comment.Id,
+            RecognitionId = comment.RecognitionId,
+            Message = comment.Message,
+            CreatedAt = comment.CreatedAt,
+            Employee = new EmployeeSimpleDto
+            {
+                Id = comment.Employee.Id,
+                Name = comment.Employee.Name,
+                Department = comment.Employee.Department,
+                Location = comment.Employee.Location,
+                Avatar = comment.Employee.Avatar
+            }
+        });
+    }
+
+    [HttpDelete("comments/{commentId}")]
+    public async Task<IActionResult> DeleteComment(int commentId)
+    {
+        var comment = await _db.RecognitionComments.FindAsync(commentId);
+        if (comment == null) return NotFound(new { message = "Comment not found" });
+
+        var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+        if (comment.EmployeeId != userId)
+            return Forbid();
+
+        _db.RecognitionComments.Remove(comment);
+        await _db.SaveChangesAsync();
+
+        return NoContent();
+    }
+
+    [HttpPost("bulk-appreciate")]
+    public async Task<IActionResult> BulkAppreciate([FromBody] BulkAppreciateRequest req)
+    {
+        var userRole = User.FindFirstValue("userRole")!;
+        if (userRole != "admin") return Forbid();
+
+        if (req.RecipientIds == null || !req.RecipientIds.Any())
+        {
+            return BadRequest(new { message = "At least one recipient must be selected." });
+        }
+
+        if (string.IsNullOrWhiteSpace(req.Message))
+        {
+            return BadRequest(new { message = "Message is required." });
+        }
+
+        var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+        var nominator = await _db.Employees.FindAsync(userId);
+        if (nominator == null) return BadRequest(new { message = "Nominator not found" });
+
+        var recipients = await _db.Employees
+            .Where(e => req.RecipientIds.Contains(e.Id) && e.IsActive)
+            .ToListAsync();
+
+        if (!recipients.Any())
+        {
+            return BadRequest(new { message = "No valid recipients found." });
+        }
+
+        using var transaction = await _db.Database.BeginTransactionAsync();
+        try
+        {
+            var createdRecognitions = new List<Recognition>();
+
+            foreach (var recipient in recipients)
+            {
+                var recognition = new Recognition
+                {
+                    FromEmployeeId = userId,
+                    ToEmployeeId = recipient.Id,
+                    Message = req.Message.Trim(),
+                    CategoryId = req.CategoryId,
+                    Points = 0,
+                    Type = "appreciation",
+                    Status = "approved",
+                    CreatedAt = DateTime.UtcNow
+                };
+
+                _db.Recognitions.Add(recognition);
+                createdRecognitions.Add(recognition);
+            }
+
+            // Save once to generate IDs
+            await _db.SaveChangesAsync();
+
+            // Add notifications for each
+            foreach (var recognition in createdRecognitions)
+            {
+                _db.Notifications.Add(new Notification
+                {
+                    EmployeeId = recognition.ToEmployeeId,
+                    Title = "You've been appreciated!",
+                    Message = $"{nominator.Name} sent you an appreciation: {req.Message.Trim()}",
+                    Type = "appreciation",
+                    IsRead = false,
+                    CreatedAt = DateTime.UtcNow
+                });
+            }
+
+            await _db.SaveChangesAsync();
+            await transaction.CommitAsync();
+        }
+        catch (Exception ex)
+        {
+            await transaction.RollbackAsync();
+            _logger.LogError(ex, "Bulk appreciation transaction failed");
+            return StatusCode(500, new { message = "An error occurred while sending bulk appreciations." });
+        }
+
+        // Clear caches
+        _cache.Remove("dashboard:shared");
+        _cache.Remove("employees:all");
+
+        return Ok(new { message = $"Successfully sent appreciation to {recipients.Count} recipients." });
     }
 }

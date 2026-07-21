@@ -180,16 +180,6 @@ export default function AppLayout({ children }: { children: ReactNode }) {
               {dark ? "Light mode" : "Dark mode"}
             </button>
           )}
-          <button
-            onClick={handleLogout}
-            className={cn(
-              "flex w-full items-center gap-3 rounded-xl bg-rose-50 px-3.5 py-2.5 text-sm font-semibold text-rose-600 transition hover:bg-rose-100 dark:bg-rose-950/30 dark:text-rose-400 dark:hover:bg-rose-950/50",
-              collapsed && "justify-center px-2"
-            )}
-          >
-            <LogOut className="h-[18px] w-[18px] flex-shrink-0" />
-            {!collapsed && "Logout"}
-          </button>
         </div>
       </aside>
 
@@ -243,13 +233,6 @@ export default function AppLayout({ children }: { children: ReactNode }) {
               >
                 {dark ? <Sun className="h-[18px] w-[18px]" /> : <Moon className="h-[18px] w-[18px]" />}
                 {dark ? "Light mode" : "Dark mode"}
-              </button>
-              <button
-                onClick={handleLogout}
-                className="flex w-full items-center gap-3 rounded-xl bg-rose-50 px-3.5 py-2.5 text-sm font-semibold text-rose-600 hover:bg-rose-100 dark:bg-rose-950/30 dark:text-rose-400"
-              >
-                <LogOut className="h-[18px] w-[18px]" />
-                Logout
               </button>
             </div>
           </div>

@@ -173,6 +173,7 @@ export interface ApiEmployee {
   nominationCount?: number;
   location?: string;
   userRole?: string;
+  managerId?: number | null;
 }
 
 export const employeesApi = {
@@ -334,6 +335,23 @@ export const recognitionsApi = {
     apiFetch<ApiRecognitionComment>(`/recognitions/${id}/comments`, {
       method: "POST",
       body: JSON.stringify({ message }),
+    }),
+
+  editComment: (commentId: number, message: string) =>
+    apiFetch<ApiRecognitionComment>(`/recognitions/comments/${commentId}`, {
+      method: "PUT",
+      body: JSON.stringify({ message }),
+    }),
+
+  deleteComment: (commentId: number) =>
+    apiFetch<void>(`/recognitions/comments/${commentId}`, {
+      method: "DELETE",
+    }),
+
+  bulkAppreciate: (recipientIds: number[], categoryId: number | null, message: string) =>
+    apiFetch<{ message: string }>("/recognitions/bulk-appreciate", {
+      method: "POST",
+      body: JSON.stringify({ recipientIds, categoryId, message }),
     }),
 };
 
