@@ -272,6 +272,7 @@ public class RecognitionsController : ControllerBase
         string? customCategory = null;
         string? awardCycle = null;
         AwardCategory? category = null;
+        bool isSpotAward = false;
 
         if (req.Type == "nomination")
         {
@@ -279,7 +280,8 @@ public class RecognitionsController : ControllerBase
             {
                 customCategory = req.CustomCategory.Trim();
                 points = 500;
-                status = "Pending BU Approval";
+                isSpotAward = true;
+                status = (userRole == "bu_manager" || userRole == "admin") ? "Approved" : "Pending BU Approval";
             }
             else
             {
@@ -297,7 +299,8 @@ public class RecognitionsController : ControllerBase
                 if (category.AwardType == "spot")
                 {
                     points = 500;
-                    status = "Pending BU Approval";
+                    isSpotAward = true;
+                    status = (userRole == "bu_manager" || userRole == "admin") ? "Approved" : "Pending BU Approval";
                 }
                 else if (category.AwardType == "performance")
                 {
@@ -354,6 +357,13 @@ public class RecognitionsController : ControllerBase
             status = "approved";
         }
 
+        bool isAutoApproved = req.Type == "nomination" && isSpotAward && (userRole == "bu_manager" || userRole == "admin");
+
+        if (isAutoApproved)
+        {
+            toEmployee.TotalPoints += 500;
+        }
+
         var recognition = new Recognition
         {
             FromEmployeeId = userId,
@@ -365,7 +375,11 @@ public class RecognitionsController : ControllerBase
             Points = points,
             Type = req.Type,
             Status = status,
-            CreatedAt = DateTime.UtcNow
+            CreatedAt = DateTime.UtcNow,
+            BUManagerId = (isAutoApproved && userRole == "bu_manager") ? userId : null,
+            BUDecisionDate = (isAutoApproved && userRole == "bu_manager") ? DateTime.UtcNow : null,
+            HRAdminId = (isAutoApproved && userRole == "admin") ? userId : null,
+            HRDecisionDate = (isAutoApproved && userRole == "admin") ? DateTime.UtcNow : null
         };
 
         _db.Recognitions.Add(recognition);
@@ -375,17 +389,53 @@ public class RecognitionsController : ControllerBase
 
         if (req.Type == "nomination")
         {
-            var audit = new NominationAudit
+            if (isAutoApproved)
             {
-                RecognitionId = recognition.Id,
-                Action = "Nominated",
-                PerformedBy = nominator?.Name ?? "CU Manager",
-                Role = userRole == "admin" ? "HR/Admin" : (userRole == "bu_manager" ? "BU Manager" : "CU Manager"),
+                var auditNominated = new NominationAudit
+                {
+                    RecognitionId = recognition.Id,
+                    Action = "Nominated",
+                    PerformedBy = nominator?.Name ?? (userRole == "admin" ? "Admin" : "BU Manager"),
+                    Role = userRole == "admin" ? "Admin" : "BU Manager",
+                    Comments = $"Nominated {toEmployee.Name} for {category?.Name ?? customCategory} (Cycle: {awardCycle ?? "N/A"})",
+                    CreatedDate = DateTime.UtcNow
+                };
+                _db.NominationAudits.Add(auditNominated);
 
-                Comments = $"Nominated {toEmployee.Name} for {category?.Name ?? customCategory} (Cycle: {awardCycle ?? "N/A"})",
-                CreatedDate = DateTime.UtcNow
-            };
-            _db.NominationAudits.Add(audit);
+                var auditAutoApproved = new NominationAudit
+                {
+                    RecognitionId = recognition.Id,
+                    Action = "Auto Approved",
+                    PerformedBy = nominator?.Name ?? (userRole == "admin" ? "Admin" : "BU Manager"),
+                    Role = userRole == "admin" ? "Admin" : "BU Manager",
+                    Comments = "Auto Approved Spot Award",
+                    CreatedDate = DateTime.UtcNow
+                };
+                _db.NominationAudits.Add(auditAutoApproved);
+
+                var pointsAudit = new PointsAudit
+                {
+                    EmployeeId = recognition.ToEmployeeId,
+                    Points = 500,
+                    Reason = $"Approved Spot Award: {category?.Name ?? customCategory}",
+                    RecognitionId = recognition.Id,
+                    CreatedDate = DateTime.UtcNow
+                };
+                _db.PointsAudits.Add(pointsAudit);
+            }
+            else
+            {
+                var audit = new NominationAudit
+                {
+                    RecognitionId = recognition.Id,
+                    Action = "Nominated",
+                    PerformedBy = nominator?.Name ?? "CU Manager",
+                    Role = userRole == "admin" ? "HR/Admin" : (userRole == "bu_manager" ? "BU Manager" : "CU Manager"),
+                    Comments = $"Nominated {toEmployee.Name} for {category?.Name ?? customCategory} (Cycle: {awardCycle ?? "N/A"})",
+                    CreatedDate = DateTime.UtcNow
+                };
+                _db.NominationAudits.Add(audit);
+            }
             await _db.SaveChangesAsync();
         }
 
@@ -406,6 +456,20 @@ public class RecognitionsController : ControllerBase
             CreatedAt = DateTime.UtcNow
         });
         await _db.SaveChangesAsync();
+
+        if (isAutoApproved)
+        {
+            _db.Notifications.Add(new Notification
+            {
+                EmployeeId = recognition.ToEmployeeId,
+                Title = "Your Spot Award nomination was approved!",
+                Message = $"Your nomination for \"{category?.Name ?? customCategory}\" was approved — you earned 500 points!",
+                Type = "award",
+                IsRead = false,
+                CreatedAt = DateTime.UtcNow
+            });
+            await _db.SaveChangesAsync();
+        }
 
         _cache.Remove("dashboard:shared");
         _cache.Remove("employees:all");
@@ -465,7 +529,7 @@ public class RecognitionsController : ControllerBase
             catch (Exception ex) { _logger.LogWarning(ex, "Failed to post appreciation card to Teams webhook."); }
         }
 
-        if (req.Type == "nomination")
+        if (req.Type == "nomination" && !isAutoApproved)
         {
             var admins = await _db.Employees.Where(e => e.UserRole == "admin").ToListAsync();
             foreach (var admin in admins)
@@ -484,6 +548,13 @@ public class RecognitionsController : ControllerBase
                     );
                 });
             }
+        }
+
+        if (isAutoApproved)
+        {
+            recognition.ToEmployee = toEmployee;
+            recognition.Category = category;
+            await SendTeamsAwardNotification(recognition, nominator?.Name ?? (userRole == "admin" ? "Admin" : "BU Manager"));
         }
 
         var result = await _db.Recognitions.AsNoTracking()

@@ -17,6 +17,7 @@ import { UserAvatar } from "@/components/ui/avatar";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import type { ApiEmployee, ApiAwardCategory } from "@/services/api";
+import { useAuth } from "@/contexts/AuthContext";
 
 export interface NominationWizardCategory extends ApiAwardCategory {
   awardType?: "spot" | "performance" | "appreciation";
@@ -86,6 +87,7 @@ export default function NominationWizard({
   pointsEnabled = true,
   quickTemplates,
 }: NominationWizardProps) {
+  const { user } = useAuth();
   const [stepIdx, setStepIdx] = useState(0);
   const [awardSearch, setAwardSearch] = useState("");
   const [empSearch, setEmpSearch] = useState("");
@@ -197,6 +199,13 @@ export default function NominationWizard({
   };
 
   if (sent) {
+    const isSpotAward = categoryId === -1 || selectedCategory?.awardType === "spot";
+    const isAutoApproved = isSpotAward && (user?.userRole === "bu_manager" || user?.userRole === "admin");
+    const finalSuccessTitle = isAutoApproved ? "Nomination Approved! 🏆" : successTitle;
+    const finalSuccessMessage = isAutoApproved
+      ? "The nomination has been automatically approved and 500 points have been allocated."
+      : successMessage;
+
     return (
       <motion.div
         initial={{ opacity: 0, scale: 0.97 }}
@@ -213,8 +222,8 @@ export default function NominationWizard({
           <CheckCircle2 className="h-9 w-9" />
         </motion.div>
         <div>
-          <h2 className="text-xl font-bold text-slate-950 dark:text-white">{successTitle}</h2>
-          <p className="mt-1 max-w-sm text-sm text-slate-500 dark:text-slate-400">{successMessage}</p>
+          <h2 className="text-xl font-bold text-slate-950 dark:text-white">{finalSuccessTitle}</h2>
+          <p className="mt-1 max-w-sm text-sm text-slate-500 dark:text-slate-400">{finalSuccessMessage}</p>
         </div>
         <button
           onClick={resetAll}
@@ -531,7 +540,13 @@ export default function NominationWizard({
                     <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-indigo-600 dark:bg-indigo-900/40 dark:text-indigo-300">
                       <Award className="h-3.5 w-3.5" />
                     </div>
-                    <p className="text-xs leading-snug text-slate-500 dark:text-slate-400">{footerNote}</p>
+                    <p className="text-xs leading-snug text-slate-500 dark:text-slate-400">
+                      {(() => {
+                        const isSpotAward = categoryId === -1 || selectedCategory?.awardType === "spot";
+                        const isAutoApproved = isSpotAward && (user?.userRole === "bu_manager" || user?.userRole === "admin");
+                        return isAutoApproved ? "This nomination will be approved immediately." : footerNote;
+                      })()}
+                    </p>
                   </div>
                 </div>
 

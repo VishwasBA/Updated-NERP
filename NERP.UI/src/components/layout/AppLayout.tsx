@@ -47,12 +47,11 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     ...(user?.userRole === "cu_manager" || user?.userRole === "bu_manager" || user?.userRole === "admin"
       ? [{ to: "/manager-dashboard", label: "My Team", icon: Users }]
       : []),
-
+    { to: "/profile", label: "Profile", icon: User },
   ];
 
   const mobileExtraItems = [
     { to: "/history", label: "History", icon: History },
-    { to: "/profile", label: "Profile", icon: User },
     { to: "/notifications", label: "Notifications", icon: Bell },
     ...(user?.userRole === "admin" ? [{ to: "/admin", label: "Admin", icon: Shield }] : []),
   ];

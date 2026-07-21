@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { UserAvatar } from "@/components/ui/avatar";
-import { Heart, Trophy, Zap, MessageSquare } from "lucide-react";
+import { Heart, Trophy, Zap, MessageSquare, ChevronDown, ChevronUp } from "lucide-react";
 import { ApiRecognition } from "@/services/api";
 
 interface Props {
@@ -21,6 +21,12 @@ function timeAgo(dateStr: string) {
 
 export default function RecentTeamAppreciations({ items, isLoading }: Props) {
   const [filter, setFilter] = useState<"all" | "appreciation" | "awards" | "approvals">("all");
+  const [expanded, setExpanded] = useState(false);
+
+  const handleFilterChange = (newFilter: typeof filter) => {
+    setFilter(newFilter);
+    setExpanded(false);
+  };
 
   const getRecognitionDetails = (item: ApiRecognition) => {
     if (item.type === "appreciation") {
@@ -76,7 +82,7 @@ export default function RecentTeamAppreciations({ items, isLoading }: Props) {
           {(["all", "appreciation", "awards", "approvals"] as const).map((t) => (
             <button
               key={t}
-              onClick={() => setFilter(t)}
+              onClick={() => handleFilterChange(t)}
               className={`rounded-full px-3 py-1 text-xs font-semibold capitalize transition ${
                 filter === t
                   ? "bg-slate-900 text-white dark:bg-slate-100 dark:text-black"
@@ -94,68 +100,88 @@ export default function RecentTeamAppreciations({ items, isLoading }: Props) {
         ) : filteredItems.length === 0 ? (
           <p className="py-8 text-center text-sm text-muted-foreground">No recent activity found matching selection.</p>
         ) : (
-          <div className="space-y-4">
-            {filteredItems.map((item) => {
-              const details = getRecognitionDetails(item);
-              const Icon = details.icon;
-              const awardName = item.category?.name ?? item.customCategory ?? "Recognition";
-              const isApproved = item.status === "Approved" || item.status === "Approved Winner" || item.status === "approved";
+          <>
+            <div className="space-y-4">
+              {(expanded ? filteredItems : filteredItems.slice(0, 5)).map((item) => {
+                const details = getRecognitionDetails(item);
+                const Icon = details.icon;
+                const awardName = item.category?.name ?? item.customCategory ?? "Recognition";
+                const isApproved = item.status === "Approved" || item.status === "Approved Winner" || item.status === "approved";
 
-              return (
-                <div
-                  key={item.id}
-                  className="relative flex items-start gap-4 rounded-xl border border-slate-100 dark:border-slate-900 bg-slate-50/50 p-4 transition-all hover:shadow-sm dark:bg-slate-900/10"
-                >
-                  {/* Activity Icon Column */}
-                  <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${details.color}`}>
-                    <Icon className="h-5 w-5" />
-                  </div>
+                return (
+                  <div
+                    key={item.id}
+                    className="relative flex items-start gap-4 rounded-xl border border-slate-100 dark:border-slate-900 bg-slate-50/50 p-4 transition-all hover:shadow-sm dark:bg-slate-900/10"
+                  >
+                    {/* Activity Icon Column */}
+                    <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${details.color}`}>
+                      <Icon className="h-5 w-5" />
+                    </div>
 
-                  {/* Activity Body */}
-                  <div className="min-w-0 flex-1 space-y-1.5">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-bold ${details.badge}`}>
-                        {details.label}
-                      </span>
-                      {item.awardCycle && (
-                        <span className="bg-slate-100 dark:bg-slate-900 text-slate-600 dark:text-slate-400 px-2 py-0.5 rounded text-[10px] font-medium">
-                          Cycle: {item.awardCycle}
+                    {/* Activity Body */}
+                    <div className="min-w-0 flex-1 space-y-1.5">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-bold ${details.badge}`}>
+                          {details.label}
                         </span>
+                        {item.awardCycle && (
+                          <span className="bg-slate-100 dark:bg-slate-900 text-slate-600 dark:text-slate-400 px-2 py-0.5 rounded text-[10px] font-medium">
+                            Cycle: {item.awardCycle}
+                          </span>
+                        )}
+                        <span className={`ml-auto text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                          isApproved 
+                            ? "bg-green-50 text-green-700 dark:bg-green-950/20 dark:text-green-400" 
+                            : item.status.includes("Reject") 
+                              ? "bg-rose-50 text-rose-700 dark:bg-rose-950/20 dark:text-rose-400"
+                              : "bg-amber-50 text-amber-700 dark:bg-amber-950/20 dark:text-amber-400"
+                        }`}>
+                          {item.status}
+                        </span>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-x-2 text-sm text-slate-600 dark:text-slate-300">
+                        <span className="font-semibold text-slate-900 dark:text-white">{item.fromEmployee.name}</span>
+                        <span className="text-slate-400 dark:text-slate-500">{details.text}</span>
+                        <span className="font-semibold text-slate-900 dark:text-white">
+                          {item.type === "appreciation" ? item.toEmployee.name : `${item.toEmployee.name} (${awardName})`}
+                        </span>
+                      </div>
+
+                      {item.message && (
+                        <p className="border-l-2 border-slate-200 pl-3 text-xs italic text-slate-500 dark:border-slate-800 dark:text-slate-400 line-clamp-2">
+                          "{item.message}"
+                        </p>
                       )}
-                      <span className={`ml-auto text-[10px] font-semibold px-2 py-0.5 rounded-full ${
-                        isApproved 
-                          ? "bg-green-50 text-green-700 dark:bg-green-950/20 dark:text-green-400" 
-                          : item.status.includes("Reject") 
-                            ? "bg-rose-50 text-rose-700 dark:bg-rose-950/20 dark:text-rose-400"
-                            : "bg-amber-50 text-amber-700 dark:bg-amber-950/20 dark:text-amber-400"
-                      }`}>
-                        {item.status}
-                      </span>
-                    </div>
 
-                    <div className="flex flex-wrap items-center gap-x-2 text-sm text-slate-600 dark:text-slate-300">
-                      <span className="font-semibold text-slate-900 dark:text-white">{item.fromEmployee.name}</span>
-                      <span className="text-slate-400 dark:text-slate-500">{details.text}</span>
-                      <span className="font-semibold text-slate-900 dark:text-white">
-                        {item.type === "appreciation" ? item.toEmployee.name : `${item.toEmployee.name} (${awardName})`}
-                      </span>
-                    </div>
-
-                    {item.message && (
-                      <p className="border-l-2 border-slate-200 pl-3 text-xs italic text-slate-500 dark:border-slate-800 dark:text-slate-400 line-clamp-2">
-                        "{item.message}"
-                      </p>
-                    )}
-
-                    <div className="flex items-center justify-between pt-1 text-[11px] text-slate-400">
-                      <span>+{item.points} points awarded</span>
-                      <span>{timeAgo(item.createdAt)}</span>
+                      <div className="flex items-center justify-between pt-1 text-[11px] text-slate-400">
+                        <span>+{item.points} points awarded</span>
+                        <span>{timeAgo(item.createdAt)}</span>
+                      </div>
                     </div>
                   </div>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+            {filteredItems.length > 5 && (
+              <div className="flex justify-end pt-4">
+                <button
+                  onClick={() => setExpanded(!expanded)}
+                  className="inline-flex items-center gap-1 text-xs font-bold text-blue-600 hover:text-blue-700 transition dark:text-sky-400 dark:hover:text-sky-300"
+                >
+                  {expanded ? (
+                    <>
+                      Show Less <ChevronUp className="h-3.5 w-3.5" />
+                    </>
+                  ) : (
+                    <>
+                      View All Activities <ChevronDown className="h-3.5 w-3.5" />
+                    </>
+                  )}
+                </button>
+              </div>
+            )}
+          </>
         )}
       </CardContent>
     </Card>

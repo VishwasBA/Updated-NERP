@@ -48,7 +48,14 @@ export default function Nominate() {
         customCategory,
         awardCycle,
       });
-      toast.success("Nomination submitted for approval! 🏆");
+      const isSpotAward = !categoryId || categories.find((c) => c.id === categoryId)?.awardType === "spot";
+      const isAutoApproved = isSpotAward && (user?.userRole === "bu_manager" || user?.userRole === "admin");
+      
+      if (isAutoApproved) {
+        toast.success("Nomination approved immediately! 🏆");
+      } else {
+        toast.success("Nomination submitted for approval! 🏆");
+      }
       // Go back to the dashboard after successful submission
       navigate("/nominations");
     } catch (err: unknown) {
